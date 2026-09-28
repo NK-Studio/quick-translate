@@ -3,6 +3,10 @@
 Unity 에디터에서 **GameObject / 에셋 이름을 한국어 ↔ 영어로 바로 번역**해 이름을 바꾸는 도구입니다.
 Hierarchy 나 Project 창에서 선택하고 단축키를 누르면, 선택한 행 바로 아래에 번역 후보가 뜨고 Enter 로 적용합니다.
 
+<p align="center">
+  <img alt="Quick Translate 사용 예: Hierarchy 에서 단축키로 번역 후보를 골라 이름 변경" src="Documentation~/demo.gif" width="406" />
+</p>
+
 <img width="2184" height="1402" alt="image" src="https://github.com/user-attachments/assets/a3885745-22ff-4828-9696-793bcde1d273" />
 
 ### 특징
