@@ -81,3 +81,7 @@ GEMINI_API_KEY=...
 | Claude / ChatGPT / Gemini | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` | AI 가 후보를 직접 생성, 용어집·문맥을 지시문으로 전달 |
 
 번역할 이름(과 AI 엔진의 경우 용어집·문맥)은 선택한 번역 서비스로 전송됩니다.
+
+## 라이선스
+
+[MIT](LICENSE.md)
