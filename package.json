@@ -1,0 +1,25 @@
+{
+  "name": "com.nkstudio.quick-translate",
+  "version": "1.0.0",
+  "displayName": "Quick Translate",
+  "description": "Translate GameObject and asset names between Korean and English right in the Hierarchy / Project window with one shortcut (Cmd/Ctrl+Shift+X). Shows ranked candidates in a popup. Engines: Google (free), Google Cloud, DeepL, Papago, Claude, ChatGPT, Gemini.",
+  "unity": "6000.3",
+  "documentationUrl": "https://github.com/NK-Studio/quick-translate#readme",
+  "changelogUrl": "https://github.com/NK-Studio/quick-translate/blob/main/CHANGELOG.md",
+  "keywords": [
+    "translate",
+    "translation",
+    "korean",
+    "rename",
+    "hierarchy",
+    "editor"
+  ],
+  "author": {
+    "name": "NK Studio",
+    "url": "https://github.com/NK-Studio"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NK-Studio/quick-translate.git"
+  }
+}

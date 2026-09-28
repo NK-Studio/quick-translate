@@ -1,0 +1,157 @@
+/* ───────── 번역 팝업 ───────── */
+
+.qt-root {
+    border-width: 1px;
+    border-color: var(--unity-colors-window-border, #1a1a1a);
+    background-color: var(--unity-colors-window-background, #383838);
+}
+
+/* 내용 높이를 재서 창 크기를 맞추므로 늘어나거나 줄어들지 않게 한다. */
+.qt-panel {
+    flex-grow: 0;
+    flex-shrink: 0;
+    padding: 4px 6px 6px 6px;
+}
+
+.qt-header {
+    -unity-font-style: bold;
+    font-size: 10px;
+    opacity: 0.75;
+    margin: 0;
+    padding: 2px 2px 0 2px;
+}
+
+.qt-source {
+    -unity-font-style: bold;
+    font-size: 13px;
+    margin: 0;
+    padding: 2px 2px 6px 2px;
+}
+
+.qt-status {
+    height: 22px;
+    -unity-text-align: middle-center;
+    font-size: 10px;
+    opacity: 0.6;
+    margin: 0;
+}
+
+.qt-row {
+    flex-direction: row;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 3px;
+}
+
+.qt-row--selected {
+    background-color: var(--unity-colors-highlight-background, #2c5d87);
+}
+
+.qt-row__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+    padding: 0;
+}
+
+.qt-row--selected > .qt-row__text {
+    color: #ffffff;
+}
+
+.qt-row__badge {
+    -unity-font-style: bold;
+    font-size: 10px;
+    color: #59bf73;
+    margin: 0 0 0 8px;
+    padding: 0;
+}
+
+.qt-edit {
+    margin: 4px 0 0 0;
+}
+
+.qt-error-buttons {
+    flex-direction: row;
+    margin-top: 2px;
+}
+
+.qt-error-buttons > Button {
+    flex-grow: 1;
+}
+
+.qt-rename-error {
+    white-space: normal;
+    -unity-text-align: middle-center;
+    font-size: 10px;
+    color: #f27366;
+    margin: 4px 0 0 0;
+}
+
+.qt-hint {
+    -unity-text-align: middle-center;
+    font-size: 10px;
+    opacity: 0.55;
+    margin: 6px 0 0 0;
+}
+
+/* ───────── 설정 화면 ───────── */
+
+.qt-settings {
+    padding: 1px 10px 10px 10px;
+}
+
+.qt-settings-title {
+    font-size: 19px;
+    -unity-font-style: bold;
+    margin: 2px 0 8px 0;
+}
+
+.qt-section-title {
+    -unity-font-style: bold;
+    margin: 12px 3px 2px 3px;
+}
+
+.qt-note {
+    white-space: normal;
+    font-size: 10px;
+    opacity: 0.7;
+    margin: 2px 3px 4px 3px;
+}
+
+.qt-key-status {
+    white-space: normal;
+    margin: 2px 3px;
+}
+
+.qt-key-status--ok {
+    color: #59bf73;
+}
+
+.qt-key-status--missing {
+    color: #f2a15a;
+}
+
+.qt-button-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 2px 0;
+}
+
+.qt-context-field > .unity-text-field__input {
+    min-height: 48px;
+    white-space: normal;
+}
+
+.qt-inline-button {
+    align-self: flex-start;
+    margin-top: 2px;
+}
+
+.qt-glossary {
+    min-height: 160px;
+    max-height: 480px;
+    margin-top: 6px;
+}
