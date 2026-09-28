@@ -5,14 +5,11 @@ using UnityEngine;
 namespace QuickTranslate
 {
     /// <summary>
-    /// Project 창에서 선택한 에셋/폴더 이름 번역. 단축키는 <see cref="HierarchyTranslateCommand"/> 와 공유하고,
-    /// Project 창 우클릭 메뉴에도 항목을 추가한다.
+    /// Project 창에서 선택한 에셋/폴더 이름 번역. 단축키는 <see cref="HierarchyTranslateCommand"/> 와 공유한다.
     /// </summary>
     [InitializeOnLoad]
     internal static class ProjectWindowTranslate
     {
-        const string ContextMenuPath = "Assets/Translate Name (KO ↔ EN)";
-
         static string _activeGuid;
         static string _activeRowGuid;
         static Rect _activeRowScreenRect;
@@ -41,12 +38,6 @@ namespace QuickTranslate
 
         public static bool IsProjectWindow(EditorWindow window) =>
             window != null && window.GetType().Name == "ProjectBrowser";
-
-        [MenuItem(ContextMenuPath, false, 20)]
-        static void TranslateFromContextMenu() => TranslateSelection();
-
-        [MenuItem(ContextMenuPath, true)]
-        static bool TranslateFromContextMenuValidate() => Selection.assetGUIDs.Length > 0;
 
         public static void TranslateSelection()
         {

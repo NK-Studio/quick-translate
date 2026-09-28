@@ -25,19 +25,19 @@ https://github.com/NK-Studio/quick-translate.git
 특정 버전을 고정하려면 태그를 붙입니다.
 
 ```
-https://github.com/NK-Studio/quick-translate.git#v1.1.1
+https://github.com/NK-Studio/quick-translate.git#v1.1.2
 ```
 
 또는 `Packages/manifest.json` 의 `dependencies` 에 직접 추가합니다.
 
 ```json
-"com.nkstudio.quick-translate": "https://github.com/NK-Studio/quick-translate.git#v1.1.1"
+"com.nkstudio.quick-translate": "https://github.com/NK-Studio/quick-translate.git#v1.1.2"
 ```
 
 ## 사용법
 
 1. Hierarchy 또는 Project 창에서 이름을 바꿀 오브젝트/에셋을 선택합니다.
-2. **Cmd+Shift+X** (Windows: Ctrl+Shift+X) 를 누릅니다. 메뉴 `Tools > Quick Translate > Translate Selected Names` 또는 Project 창 우클릭 메뉴로도 실행할 수 있습니다.
+2. **Cmd+Shift+X** (Windows: Ctrl+Shift+X) 를 누릅니다.
 3. 팝업에서 후보를 고릅니다.
 
 | 키 | 동작 |

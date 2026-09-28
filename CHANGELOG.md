@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.2] - 2026-09-29
+
+### Removed
+- `Tools > Quick Translate > Translate Selected Names` 메뉴와 Project 창 우클릭 메뉴 `Translate Name (KO ↔ EN)` (단축키로만 실행)
+
 ## [1.1.1] - 2026-09-29
 
 ### Changed

@@ -9,14 +9,12 @@ using UnityEngine.UIElements;
 namespace QuickTranslate
 {
     /// <summary>
-    /// 단축키(기본 Cmd+Shift+X, Windows 는 Ctrl+Shift+X) / 메뉴 진입점. 선택한 이름을 한→영 / 영→한 으로 번역한다.
+    /// 단축키(기본 Cmd+Shift+X, Windows 는 Ctrl+Shift+X) 진입점. 선택한 이름을 한→영 / 영→한 으로 번역한다.
     /// Project 창에 포커스가 있으면 에셋 이름(<see cref="ProjectWindowTranslate"/>), 아니면 Hierarchy 의 GameObject 이름.
     /// </summary>
     [InitializeOnLoad]
     internal static class HierarchyTranslateCommand
     {
-        const string MenuPath = "Tools/Quick Translate/Translate Selected Names";
-
         // 6.5+ 는 EntityId 기반 API 만 쓸 수 있고(int 기반은 6.7 에서 컴파일 에러), 6.3 에는 EntityId 콜백이 없다.
 #if UNITY_6000_5_OR_NEWER
         static EntityId ActiveRowKey => Selection.activeEntityId;
@@ -53,12 +51,6 @@ namespace QuickTranslate
 
         [Shortcut("Quick Translate/Translate Selected Names", KeyCode.X, ShortcutModifiers.Action | ShortcutModifiers.Shift)]
         static void TranslateShortcut() => TranslateSelection();
-
-        [MenuItem(MenuPath)]
-        static void TranslateMenu() => TranslateSelection();
-
-        [MenuItem(MenuPath, true)]
-        static bool TranslateMenuValidate() => Selection.objects.Length > 0;
 
         static void TranslateSelection()
         {
