@@ -36,7 +36,55 @@ namespace QuickTranslate
 
         static readonly Dictionary<string, IReadOnlyList<string>> Cache = new Dictionary<string, IReadOnlyList<string>>();
 
-        public static void ClearCache() => Cache.Clear();
+        // 같은 이름에 대한 요청이 진행 중이면 새로 보내지 않고 그 결과를 함께 기다린다(미리 번역 → 팝업이 이어받음).
+        static readonly Dictionary<string, Task<IReadOnlyList<string>>> InFlight =
+            new Dictionary<string, Task<IReadOnlyList<string>>>();
+
+        public static void ClearCache()
+        {
+            Cache.Clear();
+            InFlight.Clear();
+        }
+
+        /// <summary>팝업을 띄우기 전에 번역을 미리 시작한다. 결과는 캐시에 남고, 팝업의 요청이 이어받는다.</summary>
+        public static void Prefetch(string source)
+        {
+            // 실패는 팝업이 같은 요청을 다시 보낼 때 표시되므로 여기서는 예외만 관찰해 둔다.
+            GetCandidatesAsync(source).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        }
+
+        /// <summary>
+        /// 이름의 번역 후보를 가져온다. 캐시 → 진행 중인 같은 요청 → 새 요청 순으로 쓴다.
+        /// ct 는 기다림만 취소한다(요청 자체는 끝까지 진행되어 캐시에 남는다).
+        /// </summary>
+        public static async Task<IReadOnlyList<string>> GetCandidatesAsync(string source, CancellationToken ct = default)
+        {
+            source = source?.Trim() ?? string.Empty;
+            if (Cache.TryGetValue(source, out var cached))
+                return cached;
+
+            if (!InFlight.TryGetValue(source, out var task))
+            {
+                task = ComputeCandidatesAsync(source);
+                if (!task.IsCompleted)
+                {
+                    InFlight[source] = task;
+                    _ = task.ContinueWith(_ => InFlight.Remove(source), TaskScheduler.FromCurrentSynchronizationContext());
+                }
+            }
+
+            if (!ct.CanBeCanceled)
+                return await task;
+
+            var cancelled = new TaskCompletionSource<bool>();
+            using (ct.Register(() => cancelled.TrySetResult(true)))
+            {
+                if (await Task.WhenAny(task, cancelled.Task) != task)
+                    throw new OperationCanceledException(ct);
+            }
+
+            return await task;
+        }
 
         /// <summary>한글이 있으면 한→영, 한글 없이 영문자가 있으면 영→한.</summary>
         public static TranslationDirection DetectDirection(string text)
@@ -76,9 +124,9 @@ namespace QuickTranslate
             return false;
         }
 
-        public static async Task<IReadOnlyList<string>> GetCandidatesAsync(string source, CancellationToken ct = default)
+        static async Task<IReadOnlyList<string>> ComputeCandidatesAsync(string source)
         {
-            source = source?.Trim() ?? string.Empty;
+            var ct = CancellationToken.None;
             var direction = DetectDirection(source);
             if (direction == TranslationDirection.None)
                 return new[] { source };

@@ -25,13 +25,13 @@ https://github.com/NK-Studio/quick-translate.git
 특정 버전을 고정하려면 태그를 붙입니다.
 
 ```
-https://github.com/NK-Studio/quick-translate.git#v1.1.2
+https://github.com/NK-Studio/quick-translate.git#v1.1.3
 ```
 
 또는 `Packages/manifest.json` 의 `dependencies` 에 직접 추가합니다.
 
 ```json
-"com.nkstudio.quick-translate": "https://github.com/NK-Studio/quick-translate.git#v1.1.2"
+"com.nkstudio.quick-translate": "https://github.com/NK-Studio/quick-translate.git#v1.1.3"
 ```
 
 ## 사용법

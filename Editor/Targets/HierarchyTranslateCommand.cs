@@ -27,6 +27,9 @@ namespace QuickTranslate
 #endif
         static Rect _activeRowScreenRect;
 
+        /// <summary>창별 "패널 좌표 → 화면 좌표" 보정값 (window.position 기준).</summary>
+        static readonly Dictionary<EditorWindow, Vector2> OffsetCache = new Dictionary<EditorWindow, Vector2>();
+
         /// <summary>행 위치를 모를 때 창 위쪽에서 이만큼 내려서 띄운다(탭 + 툴바 + 열 머리글).</summary>
         internal const float FallbackTopOffset = 72;
 
@@ -73,6 +76,7 @@ namespace QuickTranslate
                 return;
 
             var targets = gameObjects.Select(go => (RenameTarget)new GameObjectTarget(go)).ToList();
+            TranslationPopup.PrefetchFirst(targets); // 팝업 위치를 재는 동안 번역을 먼저 시작한다.
             void Open(Rect anchor) => TranslationPopup.Open(targets, anchor);
 
             // [실험] Inspector 에 포커스가 있으면 GameObject 헤더의 이름 칸 바로 아래에 띄운다.
@@ -216,6 +220,21 @@ namespace QuickTranslate
         static void MeasureElement(EditorWindow window, Func<Rect> panelRect, Func<Rect> fallback,
             Action<Rect> open)
         {
+            // 패널 좌표 → 화면 좌표 차이(탭 높이 등)는 창이 움직여도 일정하다.
+            // 한 번 잰 값이 있으면 다시 그려질 때까지 기다리지 않고 바로 연다.
+            if (OffsetCache.TryGetValue(window, out Vector2 cachedOffset))
+            {
+                Rect rect = panelRect();
+                var anchor = new Rect(window.position.position + cachedOffset + rect.position, rect.size);
+                if (window.position.Contains(new Vector2(anchor.x + 1, anchor.center.y)))
+                {
+                    open(anchor);
+                    return;
+                }
+
+                OffsetCache.Remove(window); // 도킹 상태가 바뀌었을 수 있다 → 다시 잰다.
+            }
+
             bool finished = false;
             int framesLeft = 30;
             var probe = new IMGUIContainer { pickingMode = PickingMode.Ignore };
@@ -258,6 +277,7 @@ namespace QuickTranslate
 
                 Vector2 probeScreen = GUIUtility.GUIToScreenPoint(Vector2.zero);
                 Vector2 probeWorld = probe.worldBound.position;
+                OffsetCache[window] = probeScreen - probeWorld - window.position.position;
                 Rect rect = panelRect();
                 Finish(new Rect(probeScreen.x + rect.x - probeWorld.x, probeScreen.y + rect.y - probeWorld.y,
                     rect.width, rect.height));

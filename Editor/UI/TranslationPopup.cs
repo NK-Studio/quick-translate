@@ -15,6 +15,7 @@ namespace QuickTranslate
     {
         const float MinWidth = 220; // 실제 최소/최대 폭은 .qt-panel 의 min-width / max-width
         const float RowHeight = 24;
+        const float InitialHeight = 104; // 머리 + "번역 중" + 바닥 안내 정도
         const float HoverMoveThreshold = 2; // 이만큼 움직여야 hover 로 선택이 바뀐다
 
         Rect _anchor;
@@ -60,14 +61,24 @@ namespace QuickTranslate
 
         bool HasRemaining => _targets.Count - _targetIndex > 1;
 
+        /// <summary>처음 두 항목의 번역을 미리 시작한다(이미 진행 중이면 아무 일도 하지 않는다).</summary>
+        public static void PrefetchFirst(List<RenameTarget> targets)
+        {
+            for (int i = 0; i < targets.Count && i < 2; i++)
+                if (targets[i].IsValid)
+                    NameTranslator.Prefetch(targets[i].Name);
+        }
+
         public static void Open(List<RenameTarget> targets, Rect anchorScreenRect)
         {
+            PrefetchFirst(targets);
             var window = CreateInstance<TranslationPopup>();
             window._targets = targets;
             Show(window, anchorScreenRect, 100 + RowHeight * TranslatorSettings.MaxCandidates);
             window.Load();
         }
 
+        /// <param name="height">위/아래 배치를 정할 때 쓰는 최대 높이. 창은 작게 열고 내용에 맞춰 키운다.</param>
         static void Show(TranslationPopup window, Rect anchorScreenRect, float height)
         {
             window._anchor = anchorScreenRect;
@@ -76,7 +87,8 @@ namespace QuickTranslate
             bool anchorInMain = main.Contains(anchorScreenRect.center);
             window._placeBelow = !anchorInMain || anchorScreenRect.yMax + height <= main.yMax ||
                                  anchorScreenRect.y - height < main.y;
-            window.ShowAsDropDown(anchorScreenRect, new Vector2(MinWidth, height));
+            // 처음부터 "번역 중" 크기로 열어, 큰 빈 창이 떴다가 줄어드는 깜빡임을 없앤다.
+            window.ShowAsDropDown(anchorScreenRect, new Vector2(MinWidth, InitialHeight));
         }
 
         void OnDisable() => _cts?.Cancel();
@@ -187,6 +199,10 @@ namespace QuickTranslate
             _editing = false;
             _loading = true;
             Refresh();
+
+            // 다음 항목도 미리 번역해 둔다.
+            if (_targetIndex + 1 < _targets.Count && _targets[_targetIndex + 1].IsValid)
+                NameTranslator.Prefetch(_targets[_targetIndex + 1].Name);
 
             try
             {
