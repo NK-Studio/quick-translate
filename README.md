@@ -69,7 +69,7 @@ https://github.com/NK-Studio/quick-translate.git
 
 번역 엔진, 최대 후보 수, 첫 글자 대/소문자 우선, 문맥(DeepL·AI), AI 모델을 고릅니다. 이 PC 에만 저장됩니다.
 
-<img alt="Preferences > Quick Translate" src="https://github.com/user-attachments/assets/bee301d1-2e72-4a61-b242-fcbdff40e0a4" width="720" />
+<img alt="Preferences 의 Quick Translate 설정 화면" src="https://github.com/user-attachments/assets/bee301d1-2e72-4a61-b242-fcbdff40e0a4" width="720" />
 
 ### Project Settings › Quick Translate — 팀 용어집
 
