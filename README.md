@@ -6,7 +6,7 @@ Hierarchy 나 Project 창에서 선택하고 단축키를 누르면, 선택한 �
 <img width="2184" height="1402" alt="image" src="https://github.com/user-attachments/assets/a3885745-22ff-4828-9696-793bcde1d273" />
 
 ### 특징
-- cmd(alt) + shift + X 단축키를 눌러 한글이 있으면 한→영, 영문만 있으면 영→한으로 자동 판별
+- <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> (Windows: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>) 단축키를 눌러 한글이 있으면 한→영, 영문만 있으면 영→한으로 자동 판별
 - 여러 개 선택 시 차례로 처리, `Shift+Enter` 로 나머지 일괄 적용
 - GameObject 이름 변경은 Undo 지원 (에셋 이름 변경은 Unity 특성상 Undo 불가)
 - 번역 엔진 선택: Google(무료·실험적), Google Cloud Translation, DeepL, Papago, Claude, ChatGPT, Gemini
