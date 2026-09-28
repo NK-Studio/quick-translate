@@ -18,24 +18,12 @@ Hierarchy 나 Project 창에서 선택하고 단축키를 누르면, 선택한 �
 - Unity 6.5 (6000.5)
 - Unity 6.7 Beta (6000.7) Or Higher
 
-## 설치
+## 설치 (Git UPM)
 
 **Window > Package Manager > + > Install package from git URL…** 에 입력:
 
 ```
 https://github.com/NK-Studio/quick-translate.git
-```
-
-특정 버전을 고정하려면 태그를 붙입니다.
-
-```
-https://github.com/NK-Studio/quick-translate.git#v1.1.3
-```
-
-또는 `Packages/manifest.json` 의 `dependencies` 에 직접 추가합니다.
-
-```json
-"com.nkstudio.quick-translate": "https://github.com/NK-Studio/quick-translate.git#v1.1.3"
 ```
 
 ## 사용법
