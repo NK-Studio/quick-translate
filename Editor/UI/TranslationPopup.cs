@@ -13,13 +13,8 @@ namespace QuickTranslate
     /// </summary>
     internal sealed class TranslationPopup : EditorWindow
     {
-        const float MinWidth = 220;
-        const float MaxWidth = 420;
-        const float PanelHorizontalPadding = 12 + 2; // .qt-panel 좌우 padding + 테두리
-        const float RowExtraWidth = 16 + 48;        // .qt-row 좌우 padding + BEST 배지
-        const float RowHeight = 22;
-        const string HintText = "↑↓ 이동 · Enter 적용 · Tab 수정 · ⇧Enter 전체 · Esc 닫기";
-        const string EditHintText = "Enter 적용 · Esc 수정 취소";
+        const float MinWidth = 220; // 실제 최소/최대 폭은 .qt-panel 의 min-width / max-width
+        const float RowHeight = 24;
         const float HoverMoveThreshold = 2; // 이만큼 움직여야 hover 로 선택이 바뀐다
 
         Rect _anchor;
@@ -39,7 +34,10 @@ namespace QuickTranslate
 
         // UI
         VisualElement _panel;
-        Label _header;
+        Label _directionChip;
+        Label _kindChip;
+        Label _counter;
+        Image _sourceIcon;
         Label _source;
         Label _status;
         VisualElement _errorBox;
@@ -52,7 +50,9 @@ namespace QuickTranslate
         Vector2? _hoverOrigin;
         TextField _editField;
         Label _renameErrorLabel;
-        Label _hint;
+        VisualElement _footer;
+        bool? _footerBuiltForEditing;
+        bool _footerBuiltWithBatch;
 
         RenameTarget Current => _targets != null && _targetIndex < _targets.Count && _targets[_targetIndex].IsValid
             ? _targets[_targetIndex]
@@ -64,7 +64,7 @@ namespace QuickTranslate
         {
             var window = CreateInstance<TranslationPopup>();
             window._targets = targets;
-            Show(window, anchorScreenRect, 90 + RowHeight * TranslatorSettings.MaxCandidates);
+            Show(window, anchorScreenRect, 100 + RowHeight * TranslatorSettings.MaxCandidates);
             window.Load();
         }
 
@@ -88,19 +88,31 @@ namespace QuickTranslate
             root.AddToClassList("qt-root");
             root.focusable = true;
 
+            // 패널은 내용 크기에 맞춰 줄어들고(절대 배치), 그 크기를 창 크기로 쓴다.
             _panel = new VisualElement();
             _panel.AddToClassList("qt-panel");
             root.Add(_panel);
 
-            _header = AddLabel("qt-header");
-            _source = AddLabel("qt-source");
-            _status = AddLabel("qt-status");
+            // ── 머리: 방향/종류 칩, 진행 수, 원문 ──
+            var header = AddTo(_panel, new VisualElement(), "qt-header");
+            var chips = AddTo(header, new VisualElement(), "qt-header__chips");
+            _directionChip = AddTo(chips, new Label(), "qt-chip", "qt-chip--direction");
+            _kindChip = AddTo(chips, new Label("에셋"), "qt-chip");
+            AddTo(chips, new VisualElement(), "qt-spacer");
+            _counter = AddTo(chips, new Label(), "qt-counter");
 
-            _errorBox = new VisualElement();
+            var sourceRow = AddTo(header, new VisualElement(), "qt-source-row");
+            _sourceIcon = AddTo(sourceRow, new Image { scaleMode = ScaleMode.ScaleToFit }, "qt-source-icon");
+            _source = AddTo(sourceRow, new Label(), "qt-source");
+
+            // ── 본문: 상태/오류/후보/편집 ──
+            var body = AddTo(_panel, new VisualElement(), "qt-body");
+            _status = AddTo(body, new Label(), "qt-status");
+
+            _errorBox = AddTo(body, new VisualElement(), "qt-error");
             _errorHelp = new HelpBox(string.Empty, HelpBoxMessageType.Error);
             _errorBox.Add(_errorHelp);
-            var errorButtons = new VisualElement();
-            errorButtons.AddToClassList("qt-error-buttons");
+            var errorButtons = AddTo(_errorBox, new VisualElement(), "qt-error-buttons");
             errorButtons.Add(new Button(() =>
             {
                 SettingsService.OpenUserPreferences(TranslatorSettings.PreferencesPath);
@@ -109,18 +121,13 @@ namespace QuickTranslate
             errorButtons.Add(new Button(Load) { text = "다시 시도" });
             _skipButton = new Button(Advance) { text = "건너뛰기" };
             errorButtons.Add(_skipButton);
-            _errorBox.Add(errorButtons);
-            _panel.Add(_errorBox);
 
-            _list = new VisualElement();
-            _panel.Add(_list);
+            _list = AddTo(body, new VisualElement(), "qt-list");
+            _editField = AddTo(body, new TextField(), "qt-edit");
+            _renameErrorLabel = AddTo(body, new Label(), "qt-rename-error");
 
-            _editField = new TextField();
-            _editField.AddToClassList("qt-edit");
-            _panel.Add(_editField);
-
-            _renameErrorLabel = AddLabel("qt-rename-error");
-            _hint = AddLabel("qt-hint");
+            // ── 바닥: 단축키 안내 ──
+            _footer = AddTo(_panel, new VisualElement(), "qt-footer");
 
             // 자식(TextField 포함)보다 먼저 받아서 Enter/Esc/Tab/방향키를 가로챈다.
             root.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
@@ -135,12 +142,36 @@ namespace QuickTranslate
             root.schedule.Execute(() => root.Focus());
         }
 
-        Label AddLabel(string className)
+        static T AddTo<T>(VisualElement parent, T element, params string[] classNames) where T : VisualElement
         {
-            var label = new Label();
-            label.AddToClassList(className);
-            _panel.Add(label);
-            return label;
+            foreach (string className in classNames)
+                element.AddToClassList(className);
+            parent.Add(element);
+            return element;
+        }
+
+        /// <summary>단축키 안내를 키캡 모양으로 다시 만든다(모드가 바뀔 때만).</summary>
+        void RebuildFooter()
+        {
+            bool batch = HasRemaining;
+            if (_footerBuiltForEditing == _editing && _footerBuiltWithBatch == batch)
+                return;
+            _footerBuiltForEditing = _editing;
+            _footerBuiltWithBatch = batch;
+
+            _footer.Clear();
+            var keys = _editing
+                ? new[] { ("Enter", "적용"), ("Esc", "취소") }
+                : batch
+                    ? new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Tab", "수정"), ("⇧Enter", "전체"), ("Esc", "닫기") }
+                    : new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Tab", "수정"), ("Esc", "닫기") };
+
+            foreach (var (key, description) in keys)
+            {
+                var item = AddTo(_footer, new VisualElement(), "qt-footer__item");
+                AddTo(item, new Label(key), "qt-key");
+                AddTo(item, new Label(description), "qt-key-desc");
+            }
         }
 
         async void Load()
@@ -263,19 +294,20 @@ namespace QuickTranslate
             if (Current == null)
                 return;
 
-            string direction = NameTranslator.DetectDirection(Current.Name) == TranslationDirection.EnglishToKorean
-                ? "영어 → 한국어"
-                : "한국어 → 영어";
-            if (Current is AssetTarget)
-                direction += " · 에셋";
-            _header.text = _targets.Count > 1 ? $"{direction}  ({_targetIndex + 1}/{_targets.Count})" : direction;
+            bool toKorean = NameTranslator.DetectDirection(Current.Name) == TranslationDirection.EnglishToKorean;
+            _directionChip.text = toKorean ? "EN → KO" : "KO → EN";
+            SetVisible(_kindChip, Current is AssetTarget);
+            SetVisible(_counter, _targets.Count > 1);
+            _counter.text = $"{_targetIndex + 1} / {_targets.Count}";
             _source.text = Current.Name;
+            _sourceIcon.image = AssetPreview.GetMiniThumbnail(Current.Context);
+            SetVisible(_sourceIcon, _sourceIcon.image != null);
 
             bool showError = !_loading && _error != null;
             bool showList = !_loading && _error == null && _candidates != null;
 
             SetVisible(_status, _loading);
-            _status.text = _progress ?? "번역 중…";
+            _status.text = _progress ?? $"{TranslationEngines.Current.DisplayName} 로 번역 중…";
 
             SetVisible(_errorBox, showError);
             _errorHelp.text = _error ?? string.Empty;
@@ -289,7 +321,7 @@ namespace QuickTranslate
             SetVisible(_editField, showList && _editing);
             SetVisible(_renameErrorLabel, _renameError != null);
             _renameErrorLabel.text = _renameError ?? string.Empty;
-            _hint.text = _editing ? EditHintText : HintText;
+            RebuildFooter();
 
             FitToContent();
         }
@@ -447,22 +479,21 @@ namespace QuickTranslate
             element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
 
         /// <summary>
-        /// 너비: 원문/후보/안내 문구 중 가장 긴 텍스트 기준. 높이: 실제 레이아웃된 패널 높이.
+        /// 패널(내용 크기에 맞춰 줄어드는 절대 배치)의 실제 레이아웃 크기를 창 크기로 쓴다.
+        /// 위치는 창의 현재 position 이 아니라 기준 행(_anchor)에서 계산한다:
+        /// 드롭다운이 자리 잡기 전에는 position 이 (0,0) 근처로 읽힐 수 있기 때문.
         /// </summary>
         void FitToContent()
         {
-            if (_panel == null || float.IsNaN(_panel.layout.height) || _panel.layout.height <= 0)
+            if (_panel == null)
                 return;
 
-            float width = Measure(_hint) + PanelHorizontalPadding;
-            width = Mathf.Max(width, Measure(_source) + PanelHorizontalPadding);
-            foreach (var row in _rows)
-                width = Mathf.Max(width, Measure(row.Q<Label>(className: "qt-row__text")) + RowExtraWidth + PanelHorizontalPadding);
-            width = Mathf.Clamp(Mathf.Ceil(width), MinWidth, MaxWidth);
+            Vector2 size = _panel.layout.size;
+            if (float.IsNaN(size.x) || float.IsNaN(size.y) || size.x <= 0 || size.y <= 0)
+                return;
 
-            float height = Mathf.Ceil(_panel.layout.height) + 2; // 테두리
-            // 창의 현재 position 은 드롭다운이 자리 잡기 전에 (0,0) 근처로 읽힐 수 있어 쓰지 않고,
-            // 기준 행(_anchor)에서 직접 계산한다: 행 바로 아래, 공간이 없으면 행 바로 위.
+            float width = Mathf.Ceil(size.x) + 2;  // 테두리
+            float height = Mathf.Ceil(size.y) + 2;
             float x = _anchor.x;
             float y = _placeBelow ? _anchor.yMax : _anchor.y - height;
             Rect rect = position;
@@ -474,14 +505,6 @@ namespace QuickTranslate
             minSize = new Vector2(width, height);
             maxSize = new Vector2(width, height);
             position = new Rect(x, y, width, height);
-        }
-
-        static float Measure(TextElement element)
-        {
-            if (element == null || string.IsNullOrEmpty(element.text) || element.resolvedStyle.display == DisplayStyle.None)
-                return 0;
-            return element.MeasureTextSize(element.text, 0, VisualElement.MeasureMode.Undefined, 0,
-                VisualElement.MeasureMode.Undefined).x;
         }
     }
 }

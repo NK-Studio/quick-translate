@@ -81,7 +81,59 @@ namespace QuickTranslate
                 return;
 
             var targets = gameObjects.Select(go => (RenameTarget)new GameObjectTarget(go)).ToList();
-            OpenAtSelectedRow(gameObjects[0].name, anchor => TranslationPopup.Open(targets, anchor));
+            void Open(Rect anchor) => TranslationPopup.Open(targets, anchor);
+
+            // [실험] Inspector 에 포커스가 있으면 GameObject 헤더의 이름 칸 바로 아래에 띄운다.
+            if (IsInspectorWindow(EditorWindow.focusedWindow))
+            {
+                OpenAtInspectorNameField(EditorWindow.focusedWindow, Open);
+                return;
+            }
+
+            OpenAtSelectedRow(gameObjects[0].name, Open);
+        }
+
+        static bool IsInspectorWindow(EditorWindow window) =>
+            window != null && window.GetType().Name == "InspectorWindow";
+
+        /// <summary>
+        /// [실험] Inspector 의 GameObject 헤더(IMGUI)에서 이름 칸 위치를 추정해 그 아래에 연다.
+        /// 헤더 요소는 이름이 "...Header" 인 IMGUIContainer 이며, 이름 칸은 헤더 첫 줄(아이콘·활성 토글 오른쪽)에 있다.
+        /// </summary>
+        static void OpenAtInspectorNameField(EditorWindow inspector, Action<Rect> open)
+        {
+            // 이름 칸을 편집 중이었다면 편집을 끝내서, 팝업으로 바꾼 이름을 필드가 되돌려 쓰지 않게 한다.
+            if (EditorGUIUtility.editingTextField)
+            {
+                EditorGUIUtility.editingTextField = false;
+                GUIUtility.keyboardControl = 0;
+            }
+
+            var containers = inspector.rootVisualElement.Query<IMGUIContainer>().ToList();
+            var header = containers.FirstOrDefault(c => c.name.EndsWith("Header", StringComparison.Ordinal) &&
+                                                        c.worldBound.height >= 30)
+                         ?? containers.FirstOrDefault(c => c.worldBound.height >= 30 && c.worldBound.height <= 90 &&
+                                                           c.worldBound.width > 100);
+
+            Rect Fallback()
+            {
+                Rect area = inspector.position;
+                return new Rect(area.x + 16, area.y + FallbackTopOffset, Mathf.Max(1, area.width - 32), 1);
+            }
+
+            if (header == null)
+            {
+                open(Fallback());
+                return;
+            }
+
+            // 헤더 기준 이름 칸 위치(Unity 6 기본 레이아웃): 왼쪽에서 약 66pt, 위에서 5pt, 높이 19pt, 오른쪽 Static 토글 앞까지.
+            const float NameLeft = 66, NameTop = 5, NameHeight = 19, RightReserved = 70;
+            MeasureElement(inspector, () =>
+            {
+                Rect h = header.worldBound;
+                return new Rect(h.x + NameLeft, h.y + NameTop, Mathf.Max(1, h.width - NameLeft - RightReserved), NameHeight);
+            }, Fallback, open);
         }
 
         /// <summary>선택된 행 바로 아래(모르면 Hierarchy 창 왼쪽 위)를 기준으로 팝업을 연다.</summary>
@@ -157,6 +209,21 @@ namespace QuickTranslate
         /// </summary>
         static void MeasureRow(EditorWindow window, VisualElement row, TextElement nameText, Action<Rect> open)
         {
+            MeasureElement(window, () =>
+            {
+                Rect rowBound = row.worldBound;
+                float x = nameText != null ? nameText.worldBound.x : rowBound.x;
+                return new Rect(x, rowBound.y, Mathf.Max(1, rowBound.xMax - x), rowBound.height);
+            }, GetFallbackAnchorRect, open);
+        }
+
+        /// <summary>
+        /// window 패널 좌표계의 영역(panelRect)을 화면 좌표로 바꿔 open 에 넘긴다.
+        /// 측정값이 창 밖이거나 창이 다시 그려지지 않으면 fallback 을 쓴다.
+        /// </summary>
+        static void MeasureElement(EditorWindow window, Func<Rect> panelRect, Func<Rect> fallback,
+            Action<Rect> open)
+        {
             bool finished = false;
             int framesLeft = 30;
             var probe = new IMGUIContainer { pickingMode = PickingMode.Ignore };
@@ -171,10 +238,10 @@ namespace QuickTranslate
                 if (finished)
                     return;
 
-                // 측정값이 Hierarchy 창 밖이면(좌표 기준이 어긋난 경우) 믿지 않는다.
+                // 측정값이 창 밖이면(좌표 기준이 어긋난 경우) 믿지 않는다.
                 Rect bounds = window.position;
                 if (!bounds.Contains(new Vector2(anchor.x + 1, anchor.center.y)))
-                    anchor = GetFallbackAnchorRect();
+                    anchor = fallback();
 
                 finished = true;
                 EditorApplication.update -= Timeout;
@@ -189,7 +256,7 @@ namespace QuickTranslate
             void Timeout()
             {
                 if (--framesLeft <= 0)
-                    Finish(GetFallbackAnchorRect());
+                    Finish(fallback());
             }
 
             probe.onGUIHandler = () =>
@@ -199,13 +266,9 @@ namespace QuickTranslate
 
                 Vector2 probeScreen = GUIUtility.GUIToScreenPoint(Vector2.zero);
                 Vector2 probeWorld = probe.worldBound.position;
-                Rect rowBound = row.worldBound;
-                float x = nameText != null ? nameText.worldBound.x : rowBound.x;
-                Finish(new Rect(
-                    probeScreen.x + x - probeWorld.x,
-                    probeScreen.y + rowBound.y - probeWorld.y,
-                    Mathf.Max(1, rowBound.xMax - x),
-                    rowBound.height));
+                Rect rect = panelRect();
+                Finish(new Rect(probeScreen.x + rect.x - probeWorld.x, probeScreen.y + rect.y - probeWorld.y,
+                    rect.width, rect.height));
             };
 
             EditorApplication.update += Timeout;

@@ -1,4 +1,6 @@
-/* ───────── 번역 팝업 ───────── */
+/* ───────── 번역 팝업 ─────────
+   구성: .qt-header(칩·원문) / .qt-body(후보) / .qt-footer(키 안내)
+   배경 겹침은 rgba 로 해서 다크/라이트 스킨 모두에서 구분되게 한다. */
 
 .qt-root {
     border-width: 1px;
@@ -6,30 +8,85 @@
     background-color: var(--unity-colors-window-background, #383838);
 }
 
-/* 내용 높이를 재서 창 크기를 맞추므로 늘어나거나 줄어들지 않게 한다. */
+/* 내용 크기에 맞춰 줄어드는 절대 배치. 이 크기를 그대로 창 크기로 쓴다. */
 .qt-panel {
-    flex-grow: 0;
-    flex-shrink: 0;
-    padding: 4px 6px 6px 6px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    min-width: 218px;
+    max-width: 418px;
 }
 
+/* 머리 */
 .qt-header {
+    padding: 7px 10px 7px 10px;
+    background-color: rgba(0, 0, 0, 0.18);
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(0, 0, 0, 0.35);
+}
+
+.qt-header__chips {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.qt-chip {
+    font-size: 9px;
     -unity-font-style: bold;
+    padding: 1px 6px;
+    margin: 0 4px 0 0;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--unity-colors-label-text, #c4c4c4);
+}
+
+.qt-chip--direction {
+    background-color: rgba(76, 154, 255, 0.22);
+    color: #8ab8ff;
+}
+
+.qt-spacer {
+    flex-grow: 1;
+    min-width: 12px;
+}
+
+.qt-counter {
     font-size: 10px;
-    opacity: 0.75;
+    opacity: 0.6;
     margin: 0;
-    padding: 2px 2px 0 2px;
+    padding: 0;
+}
+
+.qt-source-row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.qt-source-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-right: 6px;
 }
 
 .qt-source {
     -unity-font-style: bold;
     font-size: 13px;
     margin: 0;
-    padding: 2px 2px 6px 2px;
+    padding: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 본문 */
+.qt-body {
+    padding: 5px 5px 5px 5px;
 }
 
 .qt-status {
-    height: 22px;
+    height: 24px;
     -unity-text-align: middle-center;
     font-size: 10px;
     opacity: 0.6;
@@ -39,13 +96,22 @@
 .qt-row {
     flex-direction: row;
     align-items: center;
-    height: 22px;
-    padding: 0 8px;
-    border-radius: 3px;
+    height: 24px;
+    padding: 0 8px 0 7px;
+    margin: 1px 0;
+    border-radius: 4px;
+    border-left-width: 3px;
+    border-left-color: rgba(0, 0, 0, 0);
 }
 
-.qt-row--selected {
+.qt-row:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.qt-row--selected,
+.qt-row--selected:hover {
     background-color: var(--unity-colors-highlight-background, #2c5d87);
+    border-left-color: #8ab8ff;
 }
 
 .qt-row__text {
@@ -63,10 +129,12 @@
 
 .qt-row__badge {
     -unity-font-style: bold;
-    font-size: 10px;
-    color: #59bf73;
-    margin: 0 0 0 8px;
-    padding: 0;
+    font-size: 9px;
+    color: #6fd08a;
+    background-color: rgba(89, 191, 115, 0.18);
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin: 0 0 0 10px;
 }
 
 .qt-edit {
@@ -90,11 +158,39 @@
     margin: 4px 0 0 0;
 }
 
-.qt-hint {
-    -unity-text-align: middle-center;
+/* 바닥: 키캡 안내 */
+.qt-footer {
+    flex-direction: row;
+    justify-content: center;
+    padding: 5px 8px 6px 8px;
+    background-color: rgba(0, 0, 0, 0.12);
+    border-top-width: 1px;
+    border-top-color: rgba(0, 0, 0, 0.3);
+}
+
+.qt-footer__item {
+    flex-direction: row;
+    align-items: center;
+    margin: 0 4px;
+}
+
+.qt-key {
+    font-size: 9px;
+    -unity-font-style: bold;
+    padding: 0 4px;
+    margin: 0 3px 0 0;
+    border-width: 1px;
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    border-color: rgba(255, 255, 255, 0.14);
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.qt-key-desc {
     font-size: 10px;
-    opacity: 0.55;
-    margin: 6px 0 0 0;
+    opacity: 0.6;
+    margin: 0;
+    padding: 0;
 }
 
 /* ───────── 설정 화면 ───────── */
