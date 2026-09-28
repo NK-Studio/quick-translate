@@ -53,6 +53,7 @@ https://github.com/NK-Studio/quick-translate.git
 
 API 키는 **프로젝트 루트(Assets 폴더 옆)의 `.env`** 에서 읽습니다. Assets 밖이라 빌드에 포함되지 않습니다.
 **`.env` 는 VCS 에 올리지 마세요** (`.gitignore` 에 `.env` 추가).
+<img width="1590" height="1070" alt="image" src="https://github.com/user-attachments/assets/fcff406c-0404-4050-a778-bb79d7f1d0df" />
 
 ```
 DEEPL_API_KEY=...
