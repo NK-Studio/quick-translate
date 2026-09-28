@@ -12,7 +12,7 @@ Hierarchy 나 Project 창에서 선택하고 단축키를 누르면, 선택한 �
 
 ## 요구 사항
 
-- Unity 6.3 (6000.3) 이상
+- Unity 6.0 (6000.0) 이상 — 6.0 / 6.3 / 6.7 에서 컴파일 확인
 
 ## 설치
 
@@ -25,13 +25,13 @@ https://github.com/NK-Studio/quick-translate.git
 특정 버전을 고정하려면 태그를 붙입니다.
 
 ```
-https://github.com/NK-Studio/quick-translate.git#v1.1.0
+https://github.com/NK-Studio/quick-translate.git#v1.1.1
 ```
 
 또는 `Packages/manifest.json` 의 `dependencies` 에 직접 추가합니다.
 
 ```json
-"com.nkstudio.quick-translate": "https://github.com/NK-Studio/quick-translate.git#v1.1.0"
+"com.nkstudio.quick-translate": "https://github.com/NK-Studio/quick-translate.git#v1.1.1"
 ```
 
 ## 사용법
