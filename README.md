@@ -86,7 +86,7 @@ https://github.com/NK-Studio/quick-translate.git
   </tr>
 </table>
 
-- **이름 전체가 일치**하면 그 용어가 맨 위 후보가 되고, **단어 단위로 일치**하면 단어별 조합 후보에 반영됩니다.
+- **이름 전체가 일치**하면 그 용어가, **일부 단어만 일치**하면 그 용어를 넣어 조합한 이름이 맨 위(BEST) 후보가 됩니다. (`상점 - 뷰` → `Shop - View`)
 - **한→영 / 영→한 양방향**으로 쓰입니다. 공백·밑줄 차이는 무시하고, 영어 쪽은 대소문자도 무시합니다 (`Health Bar` = `health_bar`).
 - AI 엔진(Claude·ChatGPT·Gemini)에는 용어집이 지시문으로 전달되어 번역 전체에 적용됩니다.
 - `ProjectSettings/QuickTranslateGlossary.asset` 에 저장되므로 **VCS 로 팀과 공유**됩니다.

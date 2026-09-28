@@ -17,7 +17,7 @@ namespace QuickTranslate
     /// <summary>
     /// 이름 텍스트 → 번역 후보 목록 생성 (한→영 / 영→한 자동 판별). UI 와 독립적이라 다른 도구에서도 재사용할 수 있다.
     /// 번역 엔진(DeepL / Google)은 결과를 하나만 주므로 후보는 아래 순서로 만들고 중복을 제거한다.
-    ///   1. 용어집 전체 일치
+    ///   1. 용어집 전체 일치 → 용어집 단어가 들어간 단어별 조합
     ///   2. 문맥(context) 번역   ← 오브젝트 이름임을 알려준 번역 (지원 엔진만)
     ///   3. 일반 번역
     ///   4. (한→영) 2·3 을 이름용으로 정리한 형태 (관사/소유격/문장부호 제거, 단어 첫 글자 대문자)
@@ -205,9 +205,44 @@ namespace QuickTranslate
             for (int i = 0; i < tokenQueries.Count; i++)
                 tokenTranslations[tokenQueries[i]] = plain[i + 1];
 
+            // 단어별 조합. 용어집 단어가 하나라도 들어가면 팀 용어를 반영한 후보이므로 맨 위(BEST)로 올린다.
+            string wordByWord = null;
+            bool usedGlossaryWord = false;
+            if (tokens.Length > 1)
+            {
+                var parts = new List<string>(tokens.Length);
+                foreach (string token in tokens)
+                {
+                    if (token.Length == 0)
+                        continue;
+
+                    if (TryGlossary(token, out string hit))
+                    {
+                        parts.Add(hit);
+                        usedGlossaryWord = true;
+                    }
+                    else if (tokenTranslations.TryGetValue(token, out string translated))
+                    {
+                        parts.Add(toEnglish
+                            ? LeadingArticle.Replace(CleanSentence(translated) ?? string.Empty, string.Empty)
+                            : CleanSentence(translated));
+                    }
+                    else
+                    {
+                        parts.Add(token);
+                    }
+                }
+
+                string joined = string.Join(" ", parts);
+                wordByWord = toEnglish ? ToNameForm(joined) : joined;
+            }
+
+            // 순서: 용어집 전체 일치 → (용어집 단어가 들어간) 단어별 조합 → 문맥 번역 → 일반 번역 → 이름 정리형 → 단어별 조합
             var candidates = new List<string>();
             if (TryGlossary(core, out string glossaryHit))
                 candidates.Add(glossaryHit);
+            if (usedGlossaryWord)
+                candidates.Add(wordByWord);
 
             string contextual = CleanSentence(contextTask.Result?[0]);
             string plainFull = CleanSentence(plain[0]);
@@ -220,27 +255,8 @@ namespace QuickTranslate
                 candidates.Add(ToNameForm(plainFull));
             }
 
-            if (tokens.Length > 1)
-            {
-                var parts = new List<string>(tokens.Length);
-                foreach (string token in tokens)
-                {
-                    if (token.Length == 0)
-                        continue;
-
-                    if (TryGlossary(token, out string hit))
-                        parts.Add(hit);
-                    else if (tokenTranslations.TryGetValue(token, out string translated))
-                        parts.Add(toEnglish
-                            ? LeadingArticle.Replace(CleanSentence(translated) ?? string.Empty, string.Empty)
-                            : CleanSentence(translated));
-                    else
-                        parts.Add(token);
-                }
-
-                string joined = string.Join(" ", parts);
-                candidates.Add(toEnglish ? ToNameForm(joined) : joined);
-            }
+            if (!usedGlossaryWord)
+                candidates.Add(wordByWord);
 
             return Store(candidates);
         }
