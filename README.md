@@ -65,15 +65,32 @@ https://github.com/NK-Studio/quick-translate.git
 
 ## 설정
 
-- **Preferences > Quick Translate**: 번역 엔진, 최대 후보 수, 첫 글자 대/소문자 우선, 문맥(DeepL·AI), AI 모델
-<img width="1590" height="1070" alt="image" src="https://github.com/user-attachments/assets/bee301d1-2e72-4a61-b242-fcbdff40e0a4" />
+### Preferences › Quick Translate — 개인 설정
 
-- **Project Settings > Quick Translate**: 팀 공용 용어집 (예: `상점` ↔ `Shop`)
+번역 엔진, 최대 후보 수, 첫 글자 대/소문자 우선, 문맥(DeepL·AI), AI 모델을 고릅니다. 이 PC 에만 저장됩니다.
 
-<img width="1826" height="1310" alt="image" src="https://github.com/user-attachments/assets/10a10066-cbef-4a88-9eed-bde790b3fc6e" />
+<img alt="Preferences > Quick Translate" src="https://github.com/user-attachments/assets/bee301d1-2e72-4a61-b242-fcbdff40e0a4" width="720" />
 
-<img width="1428" height="882" alt="image" src="https://github.com/user-attachments/assets/285ce03e-b805-4cd2-b00c-3298b8ecb138" />
+### Project Settings › Quick Translate — 팀 용어집
 
+프로젝트에서 쓰는 용어를 등록해 두면 번역 결과보다 먼저 반영됩니다. (예: `상점` ↔ `Shop`)
+
+<table>
+  <tr>
+    <th width="50%">① 용어집에 <code>상점</code> ↔ <code>Shop</code> 등록</th>
+    <th width="50%">② <code>상점 - 뷰</code> 번역 후보에 <code>Shop - View</code> 추가</th>
+  </tr>
+  <tr>
+    <td valign="top"><img alt="용어집 등록" src="https://github.com/user-attachments/assets/10a10066-cbef-4a88-9eed-bde790b3fc6e" width="100%" /></td>
+    <td valign="top"><img alt="용어집이 반영된 번역 후보" src="https://github.com/user-attachments/assets/285ce03e-b805-4cd2-b00c-3298b8ecb138" width="100%" /></td>
+  </tr>
+</table>
+
+- **이름 전체가 일치**하면 그 용어가 맨 위 후보가 되고, **단어 단위로 일치**하면 단어별 조합 후보에 반영됩니다.
+- **한→영 / 영→한 양방향**으로 쓰입니다. 공백·밑줄 차이는 무시하고, 영어 쪽은 대소문자도 무시합니다 (`Health Bar` = `health_bar`).
+- AI 엔진(Claude·ChatGPT·Gemini)에는 용어집이 지시문으로 전달되어 번역 전체에 적용됩니다.
+- `ProjectSettings/QuickTranslateGlossary.asset` 에 저장되므로 **VCS 로 팀과 공유**됩니다.
+- `+` / `−` 로 추가·삭제하고, 행을 끌어 순서를 바꿉니다 (같은 영어가 여러 번이면 위쪽 우선).
 
 ### API 키 (.env)
 
