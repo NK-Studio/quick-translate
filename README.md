@@ -68,7 +68,12 @@ https://github.com/NK-Studio/quick-translate.git
 - **Preferences > Quick Translate**: 번역 엔진, 최대 후보 수, 첫 글자 대/소문자 우선, 문맥(DeepL·AI), AI 모델
 <img width="1590" height="1070" alt="image" src="https://github.com/user-attachments/assets/bee301d1-2e72-4a61-b242-fcbdff40e0a4" />
 
-- **Project Settings > Quick Translate**: 팀 공용 용어집 (예: `체력` ↔ `HP`)
+- **Project Settings > Quick Translate**: 팀 공용 용어집 (예: `상점` ↔ `Shop`)
+
+<img width="1826" height="1310" alt="image" src="https://github.com/user-attachments/assets/10a10066-cbef-4a88-9eed-bde790b3fc6e" />
+
+<img width="1428" height="882" alt="image" src="https://github.com/user-attachments/assets/285ce03e-b805-4cd2-b00c-3298b8ecb138" />
+
 
 ### API 키 (.env)
 
