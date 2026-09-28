@@ -5,6 +5,9 @@ Hierarchy 나 Project 창에서 선택하고 단축키를 누르면, 선택한 �
 
 <img width="2184" height="1402" alt="image" src="https://github.com/user-attachments/assets/a3885745-22ff-4828-9696-793bcde1d273" />
 
+<img width="406" height="348" alt="Sep-29-2026 08-42-20" src="https://github.com/user-attachments/assets/e7f8f72b-51fa-48d0-8636-076b9ecec12a" />
+
+
 ### 특징
 - cmd(alt) + shift + X 단축키를 눌러 한글이 있으면 한→영, 영문만 있으면 영→한으로 자동 판별
 - 여러 개 선택 시 차례로 처리, `Shift+Enter` 로 나머지 일괄 적용
