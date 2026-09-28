@@ -28,29 +28,40 @@ https://github.com/NK-Studio/quick-translate.git
 
 ## 사용법
 
-1. Hierarchy/Project 창에서 이름을 바꿀 오브젝트/에셋을 선택합니다.
+1. **Hierarchy · Project · Inspector** 어디서든 이름을 바꿀 GameObject / 에셋을 선택합니다.
+2. <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> (Windows: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>) 를 누릅니다.
+3. 선택한 이름 바로 아래에 뜬 팝업에서 후보를 고르고 <kbd>Enter</kbd> 로 적용합니다.
 
-<img width="372" height="198" alt="image" src="https://github.com/user-attachments/assets/b9da7552-38e3-47f9-a4a8-20f7d2722a51" />
+<table>
+  <tr>
+    <th width="33%">Hierarchy</th>
+    <th width="33%">Project</th>
+    <th width="33%">Inspector</th>
+  </tr>
+  <tr>
+    <td valign="top"><img alt="Hierarchy 에서 번역" src="https://github.com/user-attachments/assets/b9da7552-38e3-47f9-a4a8-20f7d2722a51" width="100%" /></td>
+    <td valign="top"><img alt="Project 창에서 번역" src="https://github.com/user-attachments/assets/6c78fc3c-f806-4c7d-8dcd-7fcca7b43e66" width="100%" /></td>
+    <td valign="top"><img alt="Inspector 에서 번역" src="https://github.com/user-attachments/assets/a0c44b88-672a-4828-bdd3-c0912a17f750" width="100%" /></td>
+  </tr>
+  <tr>
+    <td valign="top">선택한 행 바로 아래에 표시.<br/>GameObject 이름 변경은 Undo 지원.</td>
+    <td valign="top">에셋·폴더 이름. <code>에셋</code> 칩으로 구분.<br/>확장자는 유지, Undo 는 불가.</td>
+    <td valign="top">Inspector 에 포커스가 있으면<br/>이름 칸 바로 아래에 표시.</td>
+  </tr>
+</table>
 
-<img width="461" height="329" alt="image" src="https://github.com/user-attachments/assets/6c78fc3c-f806-4c7d-8dcd-7fcca7b43e66" />
-
-또는 선택된 오브젝트의 인스펙터에서 이름을 전체 선택합니다.
-<img width="466" height="257" alt="image" src="https://github.com/user-attachments/assets/a0c44b88-672a-4828-bdd3-c0912a17f750" />
-
-
-
-2. **Cmd+Shift+X** (Windows: Ctrl+Shift+X) 를 누릅니다.
-3. 팝업에서 후보를 고릅니다.
+### 팝업 조작
 
 | 키 | 동작 |
 |---|---|
-| ↑ / ↓ | 후보 이동 |
-| Enter | 적용 |
-| Tab | 선택한 후보를 직접 수정 |
-| Shift+Enter | 현재 적용 + 남은 항목 모두 1순위로 적용 |
-| Esc | 닫기 |
+| <kbd>↑</kbd> <kbd>↓</kbd> | 후보 이동 |
+| <kbd>Enter</kbd> | 적용 |
+| <kbd>Tab</kbd> | 선택한 후보를 직접 수정 |
+| <kbd>Shift</kbd> + <kbd>Enter</kbd> | 현재 적용 + 남은 항목 모두 1순위로 적용 (여러 개 선택 시) |
+| <kbd>Esc</kbd> | 닫기 |
 
-단축키는 `Edit > Shortcuts` 에서 `Quick Translate` 로 검색해 바꿀 수 있습니다.
+> [!TIP]
+> 단축키는 `Edit > Shortcuts` 에서 `Quick Translate` 로 검색해 바꿀 수 있습니다.
 
 ## 설정
 
