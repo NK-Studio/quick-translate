@@ -28,7 +28,17 @@ https://github.com/NK-Studio/quick-translate.git
 
 ## 사용법
 
-1. Hierarchy 또는 Project 창에서 이름을 바꿀 오브젝트/에셋을 선택합니다.
+1. Hierarchy/Project 창에서 이름을 바꿀 오브젝트/에셋을 선택합니다.
+
+<img width="372" height="198" alt="image" src="https://github.com/user-attachments/assets/b9da7552-38e3-47f9-a4a8-20f7d2722a51" />
+
+<img width="461" height="329" alt="image" src="https://github.com/user-attachments/assets/6c78fc3c-f806-4c7d-8dcd-7fcca7b43e66" />
+
+또는 선택된 오브젝트의 인스펙터에서 이름을 전체 선택합니다.
+<img width="466" height="257" alt="image" src="https://github.com/user-attachments/assets/a0c44b88-672a-4828-bdd3-c0912a17f750" />
+
+
+
 2. **Cmd+Shift+X** (Windows: Ctrl+Shift+X) 를 누릅니다.
 3. 팝업에서 후보를 고릅니다.
 
