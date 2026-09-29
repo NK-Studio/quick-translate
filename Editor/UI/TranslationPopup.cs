@@ -96,26 +96,24 @@ namespace QuickTranslate
         void OnDisable()
         {
             _cts?.Cancel();
-            SetGlobalKeyHook(false);
+            SetSourceKeyHook(false);
             EditorApplication.update -= CloseWhenSourceLosesFocus;
         }
 
         // ───────── 포커스를 빼앗지 않는 모드 (IMGUI 입력칸) ─────────
         // IMGUI 입력칸은 창이 키보드 포커스를 잃는 순간 Unity 가 편집을 끝낸다.
-        // 그래서 팝업을 포커스 없이 띄우고, 키 입력은 Unity 단축키 시스템과 같은 전역 이벤트 훅
-        // (EditorApplication.globalEventHandler, 입력칸보다 먼저 키를 받는다)에서 가로챈다.
+        // 그래서 팝업을 포커스 없이 띄우고, 키 입력은 입력칸이 있는 창의 패널 루트에서 TrickleDown 으로 먼저 받아
+        // 입력칸에 닿기 전에 멈춘다(에디터 창의 키 이벤트는 패널 루트 → 입력칸 방향으로 내려가며 전달된다).
 
         EditorWindow _keepFocusOn;
-
-        static readonly System.Reflection.FieldInfo GlobalEventHandlerField = typeof(EditorApplication).GetField(
-            "globalEventHandler", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        VisualElement _hookedRoot;
 
         bool ShowWithoutFocus(Rect anchor)
         {
             var showWithMode = typeof(EditorWindow).GetMethod("ShowPopupWithMode",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             var modeType = typeof(EditorWindow).Assembly.GetType("UnityEditor.ShowMode");
-            if (showWithMode == null || modeType == null || GlobalEventHandlerField == null)
+            if (showWithMode == null || modeType == null || _keepFocusOn.rootVisualElement?.panel == null)
                 return false;
 
             float y = _placeBelow ? anchor.yMax : anchor.y - InitialHeight;
@@ -131,20 +129,25 @@ namespace QuickTranslate
                 return false;
             }
 
-            SetGlobalKeyHook(true);
+            SetSourceKeyHook(true);
             EditorApplication.update += CloseWhenSourceLosesFocus;
             return true;
         }
 
-        void SetGlobalKeyHook(bool enable)
+        void SetSourceKeyHook(bool enable)
         {
-            if (GlobalEventHandlerField == null)
+            if (_hookedRoot != null)
+            {
+                _hookedRoot.UnregisterCallback<KeyDownEvent>(OnSourceKeyDown, TrickleDown.TrickleDown);
+                _hookedRoot = null;
+            }
+
+            if (!enable || _keepFocusOn == null)
                 return;
-            var current = GlobalEventHandlerField.GetValue(null) as EditorApplication.CallbackFunction;
-            current -= OnGlobalEvent;
-            if (enable)
-                current += OnGlobalEvent;
-            GlobalEventHandlerField.SetValue(null, current);
+
+            var panel = _keepFocusOn.rootVisualElement?.panel;
+            _hookedRoot = panel?.visualTree ?? _keepFocusOn.rootVisualElement;
+            _hookedRoot?.RegisterCallback<KeyDownEvent>(OnSourceKeyDown, TrickleDown.TrickleDown);
         }
 
         /// <summary>원래 창에서 다른 곳을 누르거나 입력칸 편집이 끝나면 닫는다.</summary>
@@ -159,48 +162,54 @@ namespace QuickTranslate
                 Close();
         }
 
-        void OnGlobalEvent()
+        /// <summary>입력칸이 있는 창의 키 입력을 입력칸보다 먼저 받는다.</summary>
+        void OnSourceKeyDown(KeyDownEvent evt)
         {
-            var e = Event.current;
-            if (_keepFocusOn == null || e == null || e.type != EventType.KeyDown)
+            if (_keepFocusOn == null)
                 return;
 
             // Enter/Tab 의 문자 이벤트가 입력칸에 줄바꿈·탭으로 들어가지 않게 함께 삼킨다.
-            if (e.keyCode == KeyCode.None && (e.character == '\n' || e.character == '\r' || e.character == '\t'))
+            if (evt.keyCode == KeyCode.None && (evt.character == '\n' || evt.character == '\r' || evt.character == '\t'))
             {
-                e.Use();
+                SwallowSourceKey(evt);
                 return;
             }
 
-            switch (e.keyCode)
+            switch (evt.keyCode)
             {
                 case KeyCode.Escape:
-                    e.Use();
+                    SwallowSourceKey(evt);
                     Close();
                     return;
 
                 case KeyCode.Return:
                 case KeyCode.KeypadEnter:
-                    e.Use();
+                    SwallowSourceKey(evt);
                     string chosen = SelectedCandidate();
                     if (chosen != null)
                         Apply(chosen);
                     return;
 
                 case KeyCode.Tab:
-                    e.Use(); // 이 모드에서는 직접 수정 대신 입력칸에서 고치면 된다.
+                    SwallowSourceKey(evt); // 이 모드에서는 직접 수정 대신 입력칸에서 고치면 된다.
                     return;
 
                 case KeyCode.UpArrow:
                 case KeyCode.DownArrow:
-                    e.Use();
+                    SwallowSourceKey(evt);
                     if (_candidates == null || _loading || _candidates.Count == 0)
                         return;
-                    int step = e.keyCode == KeyCode.UpArrow ? -1 : 1;
+                    int step = evt.keyCode == KeyCode.UpArrow ? -1 : 1;
                     _selected = (_selected + step + _candidates.Count) % _candidates.Count;
                     UpdateSelection();
                     return;
             }
+        }
+
+        void SwallowSourceKey(EventBase evt)
+        {
+            evt.StopImmediatePropagation();
+            _hookedRoot?.panel?.focusController?.IgnoreEvent(evt);
         }
 
         void CreateGUI()
