@@ -123,6 +123,7 @@ GEMINI_API_KEY=...
 | DeepL | `DEEPL_API_KEY` | `:fx` 로 끝나면 Free API. 문맥(context) 지원 |
 | Papago | `PAPAGO_CLIENT_ID`, `PAPAGO_CLIENT_SECRET` | 네이버 클라우드 플랫폼 Papago Translation |
 | Claude / ChatGPT / Gemini | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` | AI 가 후보를 직접 생성, 용어집·문맥을 지시문으로 전달 |
+| Claude Code (로그인 계정) | 필요 없음 | 설치·로그인된 [Claude Code](https://claude.com/claude-code) CLI 로 번역. Claude 요금제 사용량에서 차감. 호출마다 CLI 를 띄워 약 3~4초 |
 
 번역할 이름(과 AI 엔진의 경우 용어집·문맥)은 선택한 번역 서비스로 전송됩니다.
 
