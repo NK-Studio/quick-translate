@@ -33,7 +33,12 @@ namespace QuickTranslate
 
         public static TranslationEngineKind Engine
         {
-            get => (TranslationEngineKind)EditorPrefs.GetInt(Prefix + "Engine", (int)TranslationEngineKind.GoogleFree);
+            get
+            {
+                // 제거된 엔진(예: 1.2.0 의 Claude Code)이 저장돼 있으면 기본 엔진으로 되돌린다.
+                var value = (TranslationEngineKind)EditorPrefs.GetInt(Prefix + "Engine", (int)TranslationEngineKind.GoogleFree);
+                return System.Enum.IsDefined(typeof(TranslationEngineKind), value) ? value : TranslationEngineKind.GoogleFree;
+            }
             set => EditorPrefs.SetInt(Prefix + "Engine", (int)value);
         }
 
@@ -74,27 +79,6 @@ namespace QuickTranslate
         public static string DefaultClaudeModel => ClaudeModels[0].id;
         public static string DefaultOpenAIModel => OpenAIModels[0].id;
         public static string DefaultGeminiModel => GeminiModels[0].id;
-
-        /// <summary>Claude Code CLI 의 --model 별칭. 이름 번역엔 haiku 로 충분하다.</summary>
-        static readonly (string id, string label)[] ClaudeCodeModels =
-        {
-            ("haiku", "Haiku — 빠름 (기본)"),
-            ("sonnet", "Sonnet — 균형"),
-            ("opus", "Opus — 고품질")
-        };
-
-        public static string ClaudeCodeModel
-        {
-            get => ModelOrDefault("ClaudeCodeModel", ClaudeCodeModels[0].id);
-            set => EditorPrefs.SetString(Prefix + "ClaudeCodeModel", value?.Trim() ?? string.Empty);
-        }
-
-        /// <summary>비워 두면 자동으로 찾는다.</summary>
-        public static string ClaudeCodePath
-        {
-            get => EditorPrefs.GetString(Prefix + "ClaudeCodePath", string.Empty);
-            set => EditorPrefs.SetString(Prefix + "ClaudeCodePath", value?.Trim() ?? string.Empty);
-        }
 
         public static string ClaudeModel
         {
@@ -233,18 +217,6 @@ namespace QuickTranslate
             page.Add(openAIGroup);
             page.Add(geminiGroup);
 
-            var claudeCodeGroup = CreateAiGroup(
-                "API 키 대신, 이 PC 에 설치·로그인된 Claude Code CLI 를 실행해 번역합니다 (쓰고 있는 Claude 요금제 사용량에서 차감). " +
-                "호출마다 CLI 를 띄우므로 API 방식보다 느립니다(약 3~4초).",
-                () => ClaudeCodeModel, v => ClaudeCodeModel = v, ClaudeCodeModels);
-            var claudePath = TranslatorStyles.Aligned(new TextField("CLI 경로") { value = ClaudeCodePath, isDelayed = true });
-            claudePath.tooltip = "비워 두면 /opt/homebrew/bin, /usr/local/bin, ~/.local/bin 등과 로그인 셸의 PATH 에서 자동으로 찾습니다.";
-            var claudePathStatus = new Label();
-            claudePathStatus.AddToClassList("qt-key-status");
-            claudeCodeGroup.Insert(0, claudePathStatus);
-            claudeCodeGroup.Insert(0, claudePath);
-            page.Add(claudeCodeGroup);
-
             // 문맥: 지원하는 엔진(DeepL, AI)을 고를 때만 보인다. 항목은 아래에서 채운다.
             var contextGroup = new VisualElement();
             page.Add(contextGroup);
@@ -328,18 +300,6 @@ namespace QuickTranslate
                 claudeGroup.style.display = engine == TranslationEngineKind.Claude ? DisplayStyle.Flex : DisplayStyle.None;
                 openAIGroup.style.display = engine == TranslationEngineKind.OpenAI ? DisplayStyle.Flex : DisplayStyle.None;
                 geminiGroup.style.display = engine == TranslationEngineKind.Gemini ? DisplayStyle.Flex : DisplayStyle.None;
-                claudeCodeGroup.style.display = engine == TranslationEngineKind.ClaudeCode ? DisplayStyle.Flex : DisplayStyle.None;
-                if (engine == TranslationEngineKind.ClaudeCode)
-                {
-                    string resolved = ClaudeCodeEngine.ResolveExecutable();
-                    claudePathStatus.text = resolved != null
-                        ? $"찾음: {resolved}"
-                        : string.IsNullOrEmpty(ClaudeCodePath)
-                            ? "Claude Code CLI 를 찾지 못했습니다. 설치 후 경로를 직접 입력하세요."
-                            : "입력한 경로에 파일이 없습니다.";
-                    claudePathStatus.EnableInClassList("qt-key-status--ok", resolved != null);
-                    claudePathStatus.EnableInClassList("qt-key-status--missing", resolved == null);
-                }
 
                 // 키가 필요한 엔진만 .env 상태를 보여준다.
                 string[] envKeys = RequiredEnvKeys(engine);
@@ -366,13 +326,6 @@ namespace QuickTranslate
                 resetContext.SetEnabled(UseContext);
             }
 
-            claudePath.RegisterValueChangedCallback(e =>
-            {
-                ClaudeCodePath = e.newValue;
-                ClaudeCodeEngine.ResetDetection();
-                Changed();
-                Refresh();
-            });
             engineField.RegisterValueChangedCallback(e =>
             {
                 Engine = (TranslationEngineKind)e.newValue;

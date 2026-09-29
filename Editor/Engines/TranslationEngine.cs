@@ -21,8 +21,7 @@ namespace QuickTranslate
         Papago = 3,
         [InspectorName("Claude (AI)")] Claude = 4,
         [InspectorName("ChatGPT (AI)")] OpenAI = 5,
-        [InspectorName("Gemini (AI)")] Gemini = 6,
-        [InspectorName("Claude Code (로그인 계정)")] ClaudeCode = 7
+        [InspectorName("Gemini (AI)")] Gemini = 6
     }
 
     /// <summary>번역 엔진(Core). 여러 문장을 한 번의 요청으로 번역한다.</summary>
@@ -48,7 +47,6 @@ namespace QuickTranslate
         static readonly ITranslationEngine Claude = new ClaudeEngine();
         static readonly ITranslationEngine OpenAI = new OpenAIEngine();
         static readonly ITranslationEngine Gemini = new GeminiEngine();
-        static readonly ITranslationEngine ClaudeCode = new ClaudeCodeEngine();
 
         public static ITranslationEngine Current => Get(TranslatorSettings.Engine);
 
@@ -62,7 +60,6 @@ namespace QuickTranslate
                 case TranslationEngineKind.Claude: return Claude;
                 case TranslationEngineKind.OpenAI: return OpenAI;
                 case TranslationEngineKind.Gemini: return Gemini;
-                case TranslationEngineKind.ClaudeCode: return ClaudeCode;
                 default: return DeepL;
             }
         }
