@@ -49,7 +49,7 @@ namespace QuickTranslate
                 if (editor == null || string.IsNullOrEmpty(editor.text))
                     return false;
 
-                var imguiTarget = new ImguiTextTarget(window, editor);
+                var imguiTarget = new ImguiTextTarget(window, container, editor);
                 if (NameTranslator.DetectDirection(imguiTarget.Name) == TranslationDirection.None)
                     return false;
 
@@ -138,6 +138,7 @@ namespace QuickTranslate
         static readonly BindingFlags StaticNonPublic = BindingFlags.Static | BindingFlags.NonPublic;
 
         readonly EditorWindow _window;
+        readonly IMGUIContainer _container;
         readonly TextEditor _editor;
         readonly string _original;
         readonly int _start;
@@ -149,9 +150,10 @@ namespace QuickTranslate
         readonly GUIStyle _style;
         readonly bool _multiline;
 
-        public ImguiTextTarget(EditorWindow window, TextEditor editor)
+        public ImguiTextTarget(EditorWindow window, IMGUIContainer container, TextEditor editor)
         {
             _window = window;
+            _container = container;
             _editor = editor;
             _original = editor.text ?? string.Empty;
             _controlId = editor.controlID;
@@ -190,6 +192,7 @@ namespace QuickTranslate
         /// 팝업 때문에 끝난 편집 상태를 되살린다. Unity 의 편집 판정(IsEditingControl)은
         /// 창 포커스 + keyboardControl == 칸 번호 + 편집기의 controlID + 편집 중 표시(s_ActuallyEditing) 이므로,
         /// 키보드 포커스를 칸 번호로 돌려놓고 편집기의 내부 BeginEditing 으로 편집을 다시 시작한다.
+        /// keyboardControl 은 OnGUI 안에서만 바꿀 수 있으므로 반드시 <see cref="RunInsideOnGui"/> 안에서 부른다.
         /// </summary>
         void RestoreEditing()
         {
@@ -214,6 +217,52 @@ namespace QuickTranslate
             }
         }
 
+        /// <summary>
+        /// window 의 OnGUI 안에서 action 을 한 번 실행한다(keyboardControl 은 OnGUI 안에서만 바꿀 수 있다).
+        /// 1x1 IMGUIContainer 를 잠깐 넣어 다음 그리기 때 실행하고 뺀다. 창이 다시 그려지지 않으면(30 프레임) action 없이 then 을 부른다.
+        /// </summary>
+        void RunInsideOnGui(Action action, Action then)
+        {
+            bool done = false;
+            int framesLeft = 30;
+            var probe = new IMGUIContainer { pickingMode = PickingMode.Ignore, focusable = false };
+            probe.style.position = Position.Absolute;
+            probe.style.width = 1;
+            probe.style.height = 1;
+
+            void Finish()
+            {
+                if (done)
+                    return;
+                done = true;
+                EditorApplication.update -= Timeout;
+                EditorApplication.delayCall += () =>
+                {
+                    probe.RemoveFromHierarchy();
+                    then();
+                };
+            }
+
+            void Timeout()
+            {
+                if (--framesLeft <= 0)
+                    Finish();
+            }
+
+            probe.onGUIHandler = () =>
+            {
+                if (done)
+                    return;
+                action();
+                Finish();
+            };
+
+            EditorApplication.update += Timeout;
+            _window.rootVisualElement.Add(probe);
+            probe.MarkDirtyRepaint();
+            _window.Repaint();
+        }
+
         /// <summary>Enter(또는 포커스 해제)로 값이 확정되는 지연 칸인지.</summary>
         bool IsDelayedField => _editor.GetType().Name == "DelayedTextEditor";
 
@@ -230,9 +279,16 @@ namespace QuickTranslate
             if (_window == null)
                 return "입력칸이 있던 창이 닫혔습니다.";
 
-            // 팝업이 닫히고 원래 창으로 포커스가 돌아온 다음에 붙여넣는다.
+            // 팝업이 닫히고 원래 창·입력칸으로 포커스를 돌려놓은 다음, 그 창의 OnGUI 안에서 편집 상태를 되살리고 붙여넣는다.
             _window.Focus();
-            EditorApplication.delayCall += () => Paste(newName);
+            if (_container != null && _container.panel != null)
+                _container.Focus();
+
+            RunInsideOnGui(() =>
+            {
+                if (!IsStillEditing())
+                    RestoreEditing();
+            }, () => Paste(newName));
             return null;
         }
 
@@ -242,18 +298,16 @@ namespace QuickTranslate
                 return;
 
             bool wholeText = _length == _original.Length;
-            if (!IsStillEditing())
-                RestoreEditing();
-
-            bool changed = _editor.text != _original;
-            if (!IsStillEditing() || (changed && !wholeText))
+            string current = _editor.text ?? string.Empty;
+            if (!IsStillEditing() || (current != _original && !wholeText))
             {
-                EditorGUIUtility.systemCopyBuffer = text;
-                Debug.LogWarning("[Quick Translate] 입력칸 편집이 끝나서 번역을 바로 넣지 못했습니다. 번역 결과를 클립보드에 복사했으니 붙여넣어 주세요.");
+                FallBackToClipboard(text);
                 return;
             }
 
+            string expected = wholeText ? text : _original.Substring(0, _start) + text + _original.Substring(_start + _length);
             string clipboard = EditorGUIUtility.systemCopyBuffer;
+            bool pasted;
             try
             {
                 EditorGUIUtility.systemCopyBuffer = text;
@@ -268,10 +322,11 @@ namespace QuickTranslate
                 }
 
                 _window.SendEvent(EditorGUIUtility.CommandEvent("Paste"));
+                pasted = _editor.text == expected;
 
                 // 지연 칸은 붙여넣기만으로는 값이 확정되지 않으므로 Enter 를 보낸다.
                 // (여러 줄 칸에서는 Enter 가 줄바꿈이라 보내지 않는다. 지연 칸은 한 줄 칸이다.)
-                if (IsDelayedField)
+                if (pasted && IsDelayedField)
                     _window.SendEvent(Event.KeyboardEvent("return"));
             }
             finally
@@ -279,6 +334,15 @@ namespace QuickTranslate
                 EditorGUIUtility.systemCopyBuffer = clipboard;
                 _window.Repaint();
             }
+
+            if (!pasted)
+                FallBackToClipboard(text);
+        }
+
+        static void FallBackToClipboard(string text)
+        {
+            EditorGUIUtility.systemCopyBuffer = text;
+            Debug.LogWarning("[Quick Translate] 입력칸에 번역을 바로 넣지 못했습니다. 번역 결과를 클립보드에 복사했으니 붙여넣어 주세요.");
         }
     }
 }
