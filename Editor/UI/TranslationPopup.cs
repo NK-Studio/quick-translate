@@ -7,16 +7,13 @@ using UnityEngine.UIElements;
 
 namespace QuickTranslate
 {
-    /// <summary>
-    /// 번역 후보 선택 팝업 (UI Toolkit). 스타일은 QuickTranslate.uss.
-    /// ↑↓ 이동 · Enter 적용 · Tab 직접 수정 · Shift+Enter 남은 항목 모두 1순위 적용 · Esc 닫기
-    /// </summary>
+    /// <summary>번역 후보 선택 팝업. 스타일은 QuickTranslate.uss.</summary>
     internal sealed class TranslationPopup : EditorWindow
     {
-        const float MinWidth = 220; // 실제 최소/최대 폭은 .qt-panel 의 min-width / max-width
+        const float MinWidth = 220; // 실제 폭은 .qt-panel 의 min/max-width 로 정해진다
         const float RowHeight = 24;
-        const float InitialHeight = 104; // 머리 + "번역 중" + 바닥 안내 정도
-        const float HoverMoveThreshold = 2; // 이만큼 움직여야 hover 로 선택이 바뀐다
+        const float InitialHeight = 104;
+        const float HoverMoveThreshold = 2;
 
         Rect _anchor;
         bool _placeBelow;
@@ -26,7 +23,7 @@ namespace QuickTranslate
         IReadOnlyList<string> _candidates;
         int _selected;
         string _error;
-        bool _loading = true; // 첫 프레임부터 "번역 중" 상태로 그린다(Load 는 한 틱 뒤에 시작).
+        bool _loading = true; // Load 는 한 틱 뒤에 시작하므로 처음부터 "번역 중" 으로 그린다
         string _progress;
         string _renameError;
         bool _editing;
@@ -52,8 +49,11 @@ namespace QuickTranslate
         TextField _editField;
         Label _renameErrorLabel;
         VisualElement _footer;
-        bool? _footerBuiltForEditing;
-        bool _footerBuiltWithBatch;
+        string _footerKeys;
+
+        // IMGUI 입력칸이 대상이면 그 창이 포커스를 잃지 않도록 팝업을 포커스 없이 띄우고 키는 그 창에서 가로챈다.
+        EditorWindow _keepFocusOn;
+        VisualElement _hookedRoot;
 
         RenameTarget Current => _targets != null && _targetIndex < _targets.Count && _targets[_targetIndex].IsValid
             ? _targets[_targetIndex]
@@ -67,8 +67,7 @@ namespace QuickTranslate
             window._targets = targets;
             window._keepFocusOn = targets.Count > 0 ? targets[0].SourceWindowToKeepFocused : null;
             Show(window, anchorScreenRect, 100 + RowHeight * TranslatorSettings.MaxCandidates);
-            // 번역 요청은 첫 await 전까지(설정 읽기·요청 생성·전송) 메인 스레드에서 동기로 돈다.
-            // 여기서 바로 시작하면 그만큼 팝업이 늦게 그려지므로, 팝업을 먼저 그린 다음 틱에 시작한다.
+            // 요청은 첫 await 전까지 메인 스레드에서 돌므로 팝업을 먼저 그린 다음 틱에 시작한다.
             EditorApplication.delayCall += () =>
             {
                 if (window != null)
@@ -76,16 +75,15 @@ namespace QuickTranslate
             };
         }
 
-        /// <param name="height">위/아래 배치를 정할 때 쓰는 최대 높이. 창은 작게 열고 내용에 맞춰 키운다.</param>
+        /// <param name="height">위/아래 배치를 정할 최대 높이. 창은 작게 열고 내용에 맞춰 키운다.</param>
         static void Show(TranslationPopup window, Rect anchorScreenRect, float height)
         {
             window._anchor = anchorScreenRect;
-            // 위/아래 배치는 최대 크기 기준으로 한 번만 정하고, 이후 내용에 맞게 높이만 줄인다.
             Rect main = EditorGUIUtility.GetMainWindowPosition();
             bool anchorInMain = main.Contains(anchorScreenRect.center);
             window._placeBelow = !anchorInMain || anchorScreenRect.yMax + height <= main.yMax ||
                                  anchorScreenRect.y - height < main.y;
-            // 처음부터 "번역 중" 크기로 열어, 큰 빈 창이 떴다가 줄어드는 깜빡임을 없앤다.
+
             if (window._keepFocusOn != null && window.ShowWithoutFocus(anchorScreenRect))
                 return;
 
@@ -93,34 +91,20 @@ namespace QuickTranslate
             window.ShowAsDropDown(anchorScreenRect, new Vector2(MinWidth, InitialHeight));
         }
 
-        void OnDisable()
-        {
-            _cts?.Cancel();
-            SetSourceKeyHook(false);
-            EditorApplication.update -= CloseWhenSourceLosesFocus;
-        }
-
-        // ───────── 포커스를 빼앗지 않는 모드 (IMGUI 입력칸) ─────────
-        // IMGUI 입력칸은 창이 키보드 포커스를 잃는 순간 Unity 가 편집을 끝낸다.
-        // 그래서 팝업을 포커스 없이 띄우고, 키 입력은 입력칸이 있는 창의 패널 루트에서 TrickleDown 으로 먼저 받아
-        // 입력칸에 닿기 전에 멈춘다(에디터 창의 키 이벤트는 패널 루트 → 입력칸 방향으로 내려가며 전달된다).
-
-        EditorWindow _keepFocusOn;
-        VisualElement _hookedRoot;
-
         bool ShowWithoutFocus(Rect anchor)
         {
+            // EditorWindow.ShowPopupWithMode(ShowMode.PopupMenu, giveFocus: false) — 공개 API 가 없다.
             var showWithMode = typeof(EditorWindow).GetMethod("ShowPopupWithMode",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             var modeType = typeof(EditorWindow).Assembly.GetType("UnityEditor.ShowMode");
-            if (showWithMode == null || modeType == null || _keepFocusOn.rootVisualElement?.panel == null)
+            var sourcePanel = _keepFocusOn.rootVisualElement?.panel;
+            if (showWithMode == null || modeType == null || sourcePanel == null)
                 return false;
 
             float y = _placeBelow ? anchor.yMax : anchor.y - InitialHeight;
             position = new Rect(anchor.x, y, MinWidth, InitialHeight);
             try
             {
-                // ShowMode.PopupMenu, giveFocus: false
                 showWithMode.Invoke(this, new[] { Enum.ToObject(modeType, 1), (object)false });
             }
             catch (Exception e)
@@ -129,87 +113,27 @@ namespace QuickTranslate
                 return false;
             }
 
-            SetSourceKeyHook(true);
+            // 키 이벤트는 패널 루트에서 입력칸 쪽으로 내려가므로 TrickleDown 으로 입력칸보다 먼저 받는다.
+            _hookedRoot = sourcePanel.visualTree;
+            _hookedRoot.RegisterCallback<KeyDownEvent>(OnSourceKeyDown, TrickleDown.TrickleDown);
             EditorApplication.update += CloseWhenSourceLosesFocus;
             return true;
         }
 
-        void SetSourceKeyHook(bool enable)
+        void OnDisable()
         {
-            if (_hookedRoot != null)
-            {
-                _hookedRoot.UnregisterCallback<KeyDownEvent>(OnSourceKeyDown, TrickleDown.TrickleDown);
-                _hookedRoot = null;
-            }
-
-            if (!enable || _keepFocusOn == null)
-                return;
-
-            var panel = _keepFocusOn.rootVisualElement?.panel;
-            _hookedRoot = panel?.visualTree ?? _keepFocusOn.rootVisualElement;
-            _hookedRoot?.RegisterCallback<KeyDownEvent>(OnSourceKeyDown, TrickleDown.TrickleDown);
+            _cts?.Cancel();
+            _hookedRoot?.UnregisterCallback<KeyDownEvent>(OnSourceKeyDown, TrickleDown.TrickleDown);
+            EditorApplication.update -= CloseWhenSourceLosesFocus;
         }
 
-        /// <summary>원래 창에서 다른 곳을 누르거나 입력칸 편집이 끝나면 닫는다.</summary>
         void CloseWhenSourceLosesFocus()
         {
-            if (_keepFocusOn == null)
-                return;
             var focused = EditorWindow.focusedWindow;
             if (focused == this)
-                return; // 후보를 마우스로 누른 경우: 그 처리(Apply)가 닫는다.
+                return; // 후보를 마우스로 누른 경우, Apply 가 닫는다
             if (focused != _keepFocusOn || !EditorGUIUtility.editingTextField)
                 Close();
-        }
-
-        /// <summary>입력칸이 있는 창의 키 입력을 입력칸보다 먼저 받는다.</summary>
-        void OnSourceKeyDown(KeyDownEvent evt)
-        {
-            if (_keepFocusOn == null)
-                return;
-
-            // Enter/Tab 의 문자 이벤트가 입력칸에 줄바꿈·탭으로 들어가지 않게 함께 삼킨다.
-            if (evt.keyCode == KeyCode.None && (evt.character == '\n' || evt.character == '\r' || evt.character == '\t'))
-            {
-                SwallowSourceKey(evt);
-                return;
-            }
-
-            switch (evt.keyCode)
-            {
-                case KeyCode.Escape:
-                    SwallowSourceKey(evt);
-                    Close();
-                    return;
-
-                case KeyCode.Return:
-                case KeyCode.KeypadEnter:
-                    SwallowSourceKey(evt);
-                    string chosen = SelectedCandidate();
-                    if (chosen != null)
-                        Apply(chosen);
-                    return;
-
-                case KeyCode.Tab:
-                    SwallowSourceKey(evt); // 이 모드에서는 직접 수정 대신 입력칸에서 고치면 된다.
-                    return;
-
-                case KeyCode.UpArrow:
-                case KeyCode.DownArrow:
-                    SwallowSourceKey(evt);
-                    if (_candidates == null || _loading || _candidates.Count == 0)
-                        return;
-                    int step = evt.keyCode == KeyCode.UpArrow ? -1 : 1;
-                    _selected = (_selected + step + _candidates.Count) % _candidates.Count;
-                    UpdateSelection();
-                    return;
-            }
-        }
-
-        void SwallowSourceKey(EventBase evt)
-        {
-            evt.StopImmediatePropagation();
-            _hookedRoot?.panel?.focusController?.IgnoreEvent(evt);
         }
 
         void CreateGUI()
@@ -220,12 +144,11 @@ namespace QuickTranslate
             root.AddToClassList(EditorGUIUtility.isProSkin ? "qt-dark" : "qt-light");
             root.focusable = true;
 
-            // 패널은 내용 크기에 맞춰 줄어들고(절대 배치), 그 크기를 창 크기로 쓴다.
+            // 패널은 내용 크기에 맞춰 줄어들고, 그 크기를 창 크기로 쓴다(FitToContent).
             _panel = new VisualElement();
             _panel.AddToClassList("qt-panel");
             root.Add(_panel);
 
-            // ── 머리: 방향/종류 칩, 진행 수, 원문 ──
             var header = AddTo(_panel, new VisualElement(), "qt-header");
             var chips = AddTo(header, new VisualElement(), "qt-header__chips");
             _directionChip = AddTo(chips, new Label(), "qt-chip", "qt-chip--direction");
@@ -237,7 +160,6 @@ namespace QuickTranslate
             _sourceIcon = AddTo(sourceRow, new Image { scaleMode = ScaleMode.ScaleToFit }, "qt-source-icon");
             _source = AddTo(sourceRow, new Label(), "qt-source");
 
-            // ── 본문: 상태/오류/후보/편집 ──
             var body = AddTo(_panel, new VisualElement(), "qt-body");
             _status = AddTo(body, new Label(), "qt-status");
 
@@ -258,10 +180,9 @@ namespace QuickTranslate
             _editField = AddTo(body, new TextField(), "qt-edit");
             _renameErrorLabel = AddTo(body, new Label(), "qt-rename-error");
 
-            // ── 바닥: 단축키 안내 ──
             _footer = AddTo(_panel, new VisualElement(), "qt-footer");
 
-            // 자식(TextField 포함)보다 먼저 받아서 Enter/Esc/Tab/방향키를 가로챈다.
+            // 편집용 TextField 보다 먼저 Enter/Esc/Tab/방향키를 받는다.
             root.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
             root.RegisterCallback<NavigationMoveEvent>(evt =>
             {
@@ -283,24 +204,19 @@ namespace QuickTranslate
             return element;
         }
 
-        /// <summary>단축키 안내를 키캡 모양으로 다시 만든다(모드가 바뀔 때만).</summary>
         void RebuildFooter()
         {
-            bool batch = HasRemaining;
-            if (_footerBuiltForEditing == _editing && _footerBuiltWithBatch == batch)
+            var keys = _keepFocusOn != null ? new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Esc", "닫기") }
+                : _editing ? new[] { ("Enter", "적용"), ("Esc", "취소") }
+                : HasRemaining ? new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Tab", "수정"), ("⇧Enter", "전체"), ("Esc", "닫기") }
+                : new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Tab", "수정"), ("Esc", "닫기") };
+
+            string signature = string.Join("|", keys);
+            if (signature == _footerKeys)
                 return;
-            _footerBuiltForEditing = _editing;
-            _footerBuiltWithBatch = batch;
+            _footerKeys = signature;
 
             _footer.Clear();
-            var keys = _keepFocusOn != null
-                ? new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Esc", "닫기") }
-                : _editing
-                ? new[] { ("Enter", "적용"), ("Esc", "취소") }
-                : batch
-                    ? new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Tab", "수정"), ("⇧Enter", "전체"), ("Esc", "닫기") }
-                    : new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Tab", "수정"), ("Esc", "닫기") };
-
             foreach (var (key, description) in keys)
             {
                 var item = AddTo(_footer, new VisualElement(), "qt-footer__item");
@@ -323,7 +239,6 @@ namespace QuickTranslate
             _loading = true;
             Refresh();
 
-            // 다음 항목도 미리 번역해 둔다.
             if (_targetIndex + 1 < _targets.Count && _targets[_targetIndex + 1].IsValid)
                 NameTranslator.Prefetch(_targets[_targetIndex + 1].Name, _targets[_targetIndex + 1].IsName);
 
@@ -353,7 +268,7 @@ namespace QuickTranslate
 
         void Apply(string newName)
         {
-            // 에셋은 같은 이름이 이미 있으면 실패한다. 이때는 다음으로 넘어가지 않고 다른 후보를 고르게 한다.
+            // 실패하면(예: 같은 이름의 에셋이 있음) 넘어가지 않고 다른 후보를 고르게 한다.
             _renameError = Current.Rename(newName);
             if (_renameError != null)
             {
@@ -375,7 +290,7 @@ namespace QuickTranslate
                 Load();
         }
 
-        /// <summary>현재 선택을 적용하고 나머지는 1순위 후보로 일괄 적용한다.</summary>
+        /// <summary>현재 선택을 적용하고 나머지는 1순위 후보로 적용한다.</summary>
         async void ApplyRemainingWithBest(string currentName)
         {
             _cts?.Cancel();
@@ -424,13 +339,9 @@ namespace QuickTranslate
             Close();
         }
 
-        /// <summary>현재 상태를 요소 표시/텍스트/클래스에 반영한다.</summary>
         void Refresh()
         {
-            if (_panel == null)
-                return;
-
-            if (Current == null)
+            if (_panel == null || Current == null)
                 return;
 
             bool toKorean = NameTranslator.DetectDirection(Current.Name) == TranslationDirection.EnglishToKorean;
@@ -472,8 +383,7 @@ namespace QuickTranslate
             _rows.Clear();
             _rowsBuiltFor = _candidates;
 
-            // 이전 팝업/항목에서 클릭한 자리에 마우스가 그대로 있으면 새 행 위에 놓여 hover 로 선택이 바뀐다.
-            // 항목이 새로 그려진 뒤 마우스를 실제로 움직였을 때만 hover 선택을 받는다.
+            // 직전에 클릭한 자리에 마우스가 그대로 있으면 새 행 위에 놓이므로, 실제로 움직였을 때만 hover 를 받는다.
             _hoverArmed = false;
             _hoverOrigin = null;
 
@@ -534,27 +444,37 @@ namespace QuickTranslate
                 _rows[i].EnableInClassList("qt-row--selected", i == _selected);
         }
 
-        void OnKeyDown(KeyDownEvent evt)
+        void OnKeyDown(KeyDownEvent evt) => HandleKey(evt, rootVisualElement);
+
+        void OnSourceKeyDown(KeyDownEvent evt) => HandleKey(evt, _hookedRoot);
+
+        void HandleKey(KeyDownEvent evt, VisualElement owner)
         {
-            // 한 번의 키 입력에 keyCode 이벤트와 문자 이벤트가 따로 올 수 있어 문자 쪽도 함께 삼킨다.
-            if (evt.keyCode == KeyCode.None && (evt.character == '\n' || evt.character == '\r' || evt.character == '\t'))
+            void Consume()
             {
-                Consume(evt);
+                evt.StopImmediatePropagation();
+                owner?.panel?.focusController?.IgnoreEvent(evt);
+            }
+
+            // Enter/Tab 은 keyCode 이벤트와 문자 이벤트가 따로 오므로 문자 쪽도 삼킨다.
+            if (evt.keyCode == KeyCode.None && evt.character is '\n' or '\r' or '\t')
+            {
+                Consume();
                 return;
             }
 
             switch (evt.keyCode)
             {
                 case KeyCode.Escape:
+                    Consume();
                     if (_editing) ExitEditing();
                     else Close();
-                    Consume(evt);
                     return;
 
                 case KeyCode.Return:
                 case KeyCode.KeypadEnter:
+                    Consume();
                     string chosen = _editing ? _editField.value : SelectedCandidate();
-                    Consume(evt);
                     if (chosen == null)
                         return;
                     if (evt.shiftKey && HasRemaining) ApplyRemainingWithBest(chosen);
@@ -562,35 +482,23 @@ namespace QuickTranslate
                     return;
 
                 case KeyCode.Tab:
-                    if (!_editing && SelectedCandidate() != null)
+                    Consume();
+                    if (_keepFocusOn == null && !_editing && SelectedCandidate() != null)
                         EnterEditing();
-                    Consume(evt);
                     return;
-            }
 
-            // 편집 중에는 방향키를 TextField 로 넘긴다.
-            if (_editing || _candidates == null || _loading || _candidates.Count == 0)
-                return;
-
-            switch (evt.keyCode)
-            {
                 case KeyCode.UpArrow:
-                    _selected = (_selected - 1 + _candidates.Count) % _candidates.Count;
-                    UpdateSelection();
-                    Consume(evt);
-                    return;
                 case KeyCode.DownArrow:
-                    _selected = (_selected + 1) % _candidates.Count;
+                    if (_editing)
+                        return; // 편집 칸의 커서 이동
+                    Consume();
+                    if (_candidates == null || _loading || _candidates.Count == 0)
+                        return;
+                    int step = evt.keyCode == KeyCode.UpArrow ? -1 : 1;
+                    _selected = (_selected + step + _candidates.Count) % _candidates.Count;
                     UpdateSelection();
-                    Consume(evt);
                     return;
             }
-        }
-
-        void Consume(EventBase evt)
-        {
-            evt.StopImmediatePropagation();
-            rootVisualElement.focusController?.IgnoreEvent(evt);
         }
 
         void EnterEditing()
@@ -615,7 +523,7 @@ namespace QuickTranslate
         string SelectedCandidate() =>
             _candidates != null && _selected < _candidates.Count ? _candidates[_selected] : null;
 
-        /// <summary>여러 줄 텍스트를 한 줄로 보여준다(적용할 때는 원문 그대로).</summary>
+        /// <summary>여러 줄 텍스트를 한 줄로 보여준다(적용은 원문 그대로).</summary>
         static string SingleLine(string text) =>
             text == null ? string.Empty : text.Trim().Replace("\r\n", " ⏎ ").Replace("\n", " ⏎ ");
 
@@ -623,9 +531,8 @@ namespace QuickTranslate
             element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
 
         /// <summary>
-        /// 패널(내용 크기에 맞춰 줄어드는 절대 배치)의 실제 레이아웃 크기를 창 크기로 쓴다.
-        /// 위치는 창의 현재 position 이 아니라 기준 행(_anchor)에서 계산한다:
-        /// 드롭다운이 자리 잡기 전에는 position 이 (0,0) 근처로 읽힐 수 있기 때문.
+        /// 패널의 실제 크기를 창 크기로 쓴다. 위치는 _anchor 에서 계산한다
+        /// (드롭다운이 자리 잡기 전에는 position 이 (0,0) 근처로 읽힐 수 있다).
         /// </summary>
         void FitToContent()
         {

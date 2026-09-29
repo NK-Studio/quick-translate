@@ -8,9 +8,8 @@ using UnityEngine.Networking;
 namespace QuickTranslate
 {
     /// <summary>
-    /// [실험적] 비공식 Google Translate 엔드포인트 (translate_a/single, client=gtx). API 키가 필요 없다.
-    /// 공식 API 가 아니므로 예고 없이 막히거나 형식이 바뀔 수 있고, 요청이 많으면 IP 단위로 차단("Sorry..." 페이지)된다.
-    /// 요청 수를 줄이기 위해 여러 문장을 줄바꿈으로 묶어 한 번에 보내고, 줄 수가 안 맞으면 하나씩 다시 보낸다.
+    /// 비공식 Google Translate 엔드포인트(translate_a/single, client=gtx). 키가 필요 없지만 예고 없이 막히거나
+    /// 요청이 많으면 IP 단위로 차단("Sorry..." 페이지)될 수 있다.
     /// </summary>
     internal sealed class GoogleFreeEngine : ITranslationEngine
     {
@@ -26,19 +25,7 @@ namespace QuickTranslate
             bool toEnglish = direction == TranslationDirection.KoreanToEnglish;
             string source = toEnglish ? "ko" : "en";
             string target = toEnglish ? "en" : "ko";
-
-            if (texts.Count == 1)
-                return new[] { await TranslateOneAsync(texts[0], source, target, ct) };
-
-            string joined = await TranslateOneAsync(string.Join("\n", texts), source, target, ct);
-            string[] lines = joined.Split('\n');
-            if (lines.Length == texts.Count)
-                return lines;
-
-            var result = new string[texts.Count];
-            for (int i = 0; i < texts.Count; i++)
-                result[i] = await TranslateOneAsync(texts[i], source, target, ct);
-            return result;
+            return await HttpJson.TranslateLinesAsync(texts, text => TranslateOneAsync(text, source, target, ct));
         }
 
         static async Task<string> TranslateOneAsync(string text, string source, string target, CancellationToken ct)

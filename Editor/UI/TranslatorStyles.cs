@@ -12,7 +12,7 @@ namespace QuickTranslate
 
         static StyleSheet _styleSheet;
 
-        /// <summary>패키지 경로에서 먼저 찾고, 없으면(Assets 로 복사해 쓰는 경우 등) 이름으로 검색한다.</summary>
+        /// <summary>패키지 경로에서 찾고, 없으면(Assets 에 복사해 쓰는 경우) 이름으로 검색한다.</summary>
         public static StyleSheet StyleSheet
         {
             get

@@ -8,10 +8,7 @@ using UnityEngine.Networking;
 
 namespace QuickTranslate
 {
-    /// <summary>
-    /// Google Cloud Translation API (Basic, v2). 문맥(context) 파라미터가 없으므로 문맥 번역 후보는 만들지 않는다.
-    /// 키는 URL 이 아닌 X-Goog-Api-Key 헤더로 보낸다.
-    /// </summary>
+    /// <summary>Google Cloud Translation API (Basic, v2). 키는 URL 이 아니라 X-Goog-Api-Key 헤더로 보낸다.</summary>
     internal sealed class GoogleTranslateEngine : ITranslationEngine
     {
         const string Endpoint = "https://translation.googleapis.com/language/translate/v2";

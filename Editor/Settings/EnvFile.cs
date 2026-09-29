@@ -1,16 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
+using System.Linq;
 using UnityEngine;
 
 namespace QuickTranslate
 {
-    /// <summary>
-    /// 프로젝트 루트(Assets 폴더 밖)의 .env 파일에서 API 키를 읽는다.
-    /// Assets 밖이라 Unity 가 임포트하지 않고 빌드에도 포함되지 않는다. VCS 에는 올리지 않는다(.gitignore).
-    /// 파일이 바뀌면(수정 시각 기준) 다음 조회 때 다시 읽는다.
-    /// </summary>
+    /// <summary>프로젝트 루트(Assets 밖)의 .env 에서 API 키를 읽는다. 파일이 바뀌면 다음 조회 때 다시 읽는다.</summary>
     internal static class EnvFile
     {
         public const string DeepLApiKey = "DEEPL_API_KEY";
@@ -20,6 +16,11 @@ namespace QuickTranslate
         public const string AnthropicApiKey = "ANTHROPIC_API_KEY";
         public const string OpenAIApiKey = "OPENAI_API_KEY";
         public const string GeminiApiKey = "GEMINI_API_KEY";
+
+        public static readonly string[] AllKeys =
+        {
+            DeepLApiKey, GoogleApiKey, PapagoClientId, PapagoClientSecret, AnthropicApiKey, OpenAIApiKey, GeminiApiKey
+        };
 
         static Dictionary<string, string> _values;
         static DateTime _loadedWriteTime;
@@ -44,42 +45,26 @@ namespace QuickTranslate
             return _values.TryGetValue(key, out string value) ? value : string.Empty;
         }
 
-        /// <summary>
-        /// 값을 채워 넣는다. 파일이 없으면 만들고, 키가 없으면 끝에 추가하고,
-        /// 키가 있지만 값이 비어 있으면 그 줄을 채운다. 이미 값이 있는 키는 건드리지 않는다.
-        /// </summary>
-        public static void FillMissing(IEnumerable<KeyValuePair<string, string>> entries)
+        /// <summary>없는 키만 "KEY=" 줄로 끝에 추가한다. 파일이 없으면 만든다.</summary>
+        public static void AddMissingKeys(IEnumerable<string> keys)
         {
-            string path = FilePath;
-            var lines = File.Exists(path)
-                ? new List<string>(File.ReadAllLines(path))
-                : new List<string>
-                {
-                    "# Quick Translate API 키 (VCS 에 올리지 마세요)",
-                    "# 사용하는 엔진의 키만 채우면 됩니다."
-                };
-
-            bool changed = !File.Exists(path);
-            foreach (var entry in entries)
-            {
-                string value = entry.Value ?? string.Empty;
-                int index = lines.FindIndex(line => Parse(new[] { line }).ContainsKey(entry.Key));
-                if (index < 0)
-                {
-                    lines.Add($"{entry.Key}={value}");
-                    changed = true;
-                }
-                else if (value.Length > 0 && Parse(new[] { lines[index] })[entry.Key].Length == 0)
-                {
-                    lines[index] = $"{entry.Key}={value}";
-                    changed = true;
-                }
-            }
-
-            if (!changed)
+            EnsureLoaded();
+            var missing = keys.Where(key => !_values.ContainsKey(key)).Select(key => key + "=").ToList();
+            if (missing.Count == 0 && Exists)
                 return;
 
-            File.WriteAllText(path, string.Join("\n", lines) + "\n");
+            if (Exists)
+            {
+                string current = File.ReadAllText(FilePath);
+                string separator = current.Length > 0 && !current.EndsWith("\n", StringComparison.Ordinal) ? "\n" : string.Empty;
+                File.AppendAllText(FilePath, separator + string.Join("\n", missing) + "\n");
+            }
+            else
+            {
+                missing.Insert(0, "# Quick Translate API 키 (VCS 에 올리지 마세요). 사용하는 엔진의 키만 채우면 됩니다.");
+                File.WriteAllText(FilePath, string.Join("\n", missing) + "\n");
+            }
+
             _values = null;
         }
 

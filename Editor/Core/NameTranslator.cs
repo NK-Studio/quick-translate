@@ -15,13 +15,8 @@ namespace QuickTranslate
     }
 
     /// <summary>
-    /// 이름 텍스트 → 번역 후보 목록 생성 (한→영 / 영→한 자동 판별). UI 와 독립적이라 다른 도구에서도 재사용할 수 있다.
-    /// 번역 엔진(DeepL / Google)은 결과를 하나만 주므로 후보는 아래 순서로 만들고 중복을 제거한다.
-    ///   1. 용어집 전체 일치 → 용어집 단어가 들어간 단어별 조합
-    ///   2. 문맥(context) 번역   ← 오브젝트 이름임을 알려준 번역 (지원 엔진만)
-    ///   3. 일반 번역
-    ///   4. (한→영) 2·3 을 이름용으로 정리한 형태 (관사/소유격/문장부호 제거, 단어 첫 글자 대문자)
-    ///   5. 단어별 번역 조합 (단어 단위 용어집 적용)
+    /// 이름·텍스트의 번역 후보를 만든다(한↔영 자동 판별). 번역 API 는 결과를 하나만 주므로
+    /// 용어집, 문맥 번역, 일반 번역, 이름 정리형, 단어별 조합을 모아 후보로 쓴다.
     /// </summary>
     public static class NameTranslator
     {
@@ -36,7 +31,7 @@ namespace QuickTranslate
 
         static readonly Dictionary<string, IReadOnlyList<string>> Cache = new Dictionary<string, IReadOnlyList<string>>();
 
-        // 같은 이름에 대한 요청이 진행 중이면 새로 보내지 않고 그 결과를 함께 기다린다(미리 번역 → 팝업이 이어받음).
+        // 같은 요청이 진행 중이면 새로 보내지 않고 함께 기다린다(미리 번역한 것을 팝업이 이어받는다).
         static readonly Dictionary<string, Task<IReadOnlyList<string>>> InFlight =
             new Dictionary<string, Task<IReadOnlyList<string>>>();
 
@@ -46,22 +41,21 @@ namespace QuickTranslate
             InFlight.Clear();
         }
 
-        /// <summary>팝업을 띄우기 전에 번역을 미리 시작한다. 결과는 캐시에 남고, 팝업의 요청이 이어받는다.</summary>
+        /// <summary>미리 번역을 시작해 둔다.</summary>
         public static void Prefetch(string source, bool nameMode = true)
         {
-            // 실패는 팝업이 같은 요청을 다시 보낼 때 표시되므로 여기서는 예외만 관찰해 둔다.
+            // 실패는 팝업이 다시 요청할 때 표시되므로 여기서는 예외만 관찰한다.
             GetCandidatesAsync(source, default, nameMode).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
         }
 
-        /// <summary>입력칸 텍스트(UI 문구 등)용 문맥. 이름용 기본 문맥 대신 쓴다.</summary>
+        /// <summary>입력칸 텍스트용 문맥(이름용 기본 문맥 대신).</summary>
         const string TextContext =
             "This text is used in a Unity game project (UI text, labels, descriptions or editor fields). " +
             "Translate it naturally, keeping the meaning, tone, line breaks and placeholders.";
 
         /// <summary>
-        /// 번역 후보를 가져온다. 캐시 → 진행 중인 같은 요청 → 새 요청 순으로 쓴다.
-        /// ct 는 기다림만 취소한다(요청 자체는 끝까지 진행되어 캐시에 남는다).
-        /// nameMode 가 false 면(입력칸 텍스트) 이름용 가공 없이 문장 그대로 번역한다.
+        /// 번역 후보. ct 는 기다림만 취소한다(요청은 끝까지 진행되어 캐시에 남는다).
+        /// nameMode 가 false 면 이름용 가공 없이 문장 그대로 번역한다.
         /// </summary>
         public static async Task<IReadOnlyList<string>> GetCandidatesAsync(string source, CancellationToken ct = default,
             bool nameMode = true)
@@ -132,10 +126,7 @@ namespace QuickTranslate
             return false;
         }
 
-        /// <summary>
-        /// 입력칸 텍스트: 용어집 전체 일치 → 문맥 번역 → 일반 번역만 쓴다(이름 정리형·단어별 조합·대소문자 짝 없음).
-        /// 앞뒤 공백·줄바꿈은 원문 그대로 되돌려 붙인다.
-        /// </summary>
+        /// <summary>입력칸 텍스트: 용어집 → 문맥 번역 → 일반 번역. 앞뒤 공백·줄바꿈은 원문대로 되돌려 붙인다.</summary>
         static async Task<IReadOnlyList<string>> ComputeTextCandidatesAsync(string source, string key)
         {
             var ct = CancellationToken.None;
@@ -226,7 +217,7 @@ namespace QuickTranslate
             bool TryGlossary(string text, out string hit) =>
                 toEnglish ? glossary.TryGet(text, out hit) : glossary.TryGetKorean(text, out hit);
 
-            // AI 엔진: 순위가 매겨진 후보를 직접 받는다(용어집은 프롬프트로 전달).
+            // AI 엔진은 순위가 매겨진 후보를 직접 준다(용어집은 지시문으로 전달).
             if (engine is ICandidateEngine candidateEngine)
             {
                 var aiCandidates = new List<string>();
@@ -275,7 +266,7 @@ namespace QuickTranslate
             for (int i = 0; i < tokenQueries.Count; i++)
                 tokenTranslations[tokenQueries[i]] = plain[i + 1];
 
-            // 단어별 조합. 용어집 단어가 하나라도 들어가면 팀 용어를 반영한 후보이므로 맨 위(BEST)로 올린다.
+            // 단어별 조합. 용어집 단어가 들어가면 팀 용어를 반영한 것이므로 맨 위(BEST)로 올린다.
             string wordByWord = null;
             bool usedGlossaryWord = false;
             if (tokens.Length > 1)
@@ -307,7 +298,6 @@ namespace QuickTranslate
                 wordByWord = toEnglish ? ToNameForm(joined) : joined;
             }
 
-            // 순서: 용어집 전체 일치 → (용어집 단어가 들어간) 단어별 조합 → 문맥 번역 → 일반 번역 → 이름 정리형 → 단어별 조합
             var candidates = new List<string>();
             if (TryGlossary(core, out string glossaryHit))
                 candidates.Add(glossaryHit);
@@ -339,9 +329,8 @@ namespace QuickTranslate
         }
 
         /// <summary>
-        /// 중복(대소문자 구분)을 제거하고 최대 개수로 자른다.
-        /// withCaseVariants 면 각 후보를 첫 글자 대문자/소문자 두 버전으로 넣는다. (banana → Banana, banana)
-        /// 순서는 설정(대문자 우선 / 소문자 우선)을 따른다.
+        /// 중복을 빼고 최대 개수로 자른다. withCaseVariants 면 각 후보를 첫 글자 대/소문자 두 버전으로 넣는다
+        /// (Banana, banana — 순서는 설정을 따른다).
         /// </summary>
         static List<string> Finalize(List<string> candidates, string suffix, int max, bool withCaseVariants)
         {

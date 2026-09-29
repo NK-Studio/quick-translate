@@ -8,11 +8,7 @@ using UnityEngine.Networking;
 
 namespace QuickTranslate
 {
-    /// <summary>
-    /// 네이버 클라우드 플랫폼 Papago Translation (NMT). Client ID / Client Secret 을 헤더로 보낸다.
-    /// 요청당 문장 하나만 받으므로 여러 문장은 줄바꿈으로 묶어 한 번에 보내고, 줄 수가 안 맞으면 하나씩 다시 보낸다.
-    /// 문맥(context) 파라미터는 없다.
-    /// </summary>
+    /// <summary>네이버 클라우드 플랫폼 Papago Translation. Client ID / Secret 을 헤더로 보낸다.</summary>
     internal sealed class PapagoEngine : ITranslationEngine
     {
         const string Endpoint = "https://papago.apigw.ntruss.com/nmt/v1/translation";
@@ -38,19 +34,7 @@ namespace QuickTranslate
             bool toEnglish = direction == TranslationDirection.KoreanToEnglish;
             string source = toEnglish ? "ko" : "en";
             string target = toEnglish ? "en" : "ko";
-
-            if (texts.Count == 1)
-                return new[] { await TranslateOneAsync(texts[0], source, target, ct) };
-
-            string joined = await TranslateOneAsync(string.Join("\n", texts), source, target, ct);
-            string[] lines = joined.Split('\n');
-            if (lines.Length == texts.Count)
-                return lines;
-
-            var result = new string[texts.Count];
-            for (int i = 0; i < texts.Count; i++)
-                result[i] = await TranslateOneAsync(texts[i], source, target, ct);
-            return result;
+            return await HttpJson.TranslateLinesAsync(texts, text => TranslateOneAsync(text, source, target, ct));
         }
 
         static async Task<string> TranslateOneAsync(string text, string source, string target, CancellationToken ct)

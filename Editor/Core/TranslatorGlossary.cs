@@ -8,11 +8,7 @@ using UnityEngine.UIElements;
 
 namespace QuickTranslate
 {
-    /// <summary>
-    /// 팀 공용 용어집. ProjectSettings 에 저장되어 VCS 로 공유된다.
-    /// 전체 이름 또는 단어가 일치하면 번역 결과보다 우선한다. (예: 체력 ↔ HP)
-    /// 영→한 에서는 영어 쪽을 대소문자·공백·밑줄 구분 없이 역으로 찾는다.
-    /// </summary>
+    /// <summary>팀 공용 용어집(ProjectSettings 에 저장). 영→한은 영어 쪽을 대소문자 구분 없이 역으로 찾는다.</summary>
     [FilePath("ProjectSettings/QuickTranslateGlossary.asset", FilePathAttribute.Location.ProjectFolder)]
     internal sealed class TranslatorGlossary : ScriptableSingleton<TranslatorGlossary>
     {
@@ -65,7 +61,7 @@ namespace QuickTranslate
             }
         }
 
-        /// <summary>공백·밑줄 차이("체력 바" / "체력바", "Health Bar" / "Health_Bar")는 같은 항목으로 취급한다.</summary>
+        /// <summary>공백·밑줄 차이는 무시한다("체력 바" = "체력바", "Health Bar" = "Health_Bar").</summary>
         static string Normalize(string text)
         {
             if (string.IsNullOrEmpty(text))
@@ -154,7 +150,7 @@ namespace QuickTranslate
                 minWidth = 80,
                 makeCell = () =>
                 {
-                    // 매 글자마다 파일에 쓰지 않도록 확정(Enter/포커스 해제) 시점에만 값을 받는다.
+                    // 글자마다 파일에 쓰지 않도록 확정(Enter·포커스 해제) 때만 받는다.
                     var field = new TextField { isDelayed = true };
                     field.RegisterValueChangedCallback(evt =>
                     {

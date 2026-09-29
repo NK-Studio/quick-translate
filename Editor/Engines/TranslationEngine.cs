@@ -29,7 +29,7 @@ namespace QuickTranslate
     {
         string DisplayName { get; }
 
-        /// <summary>'오브젝트 이름' 같은 문맥을 번역에 반영할 수 있는지 (DeepL context 파라미터).</summary>
+        /// <summary>문맥(오브젝트 이름이라는 설명 등)을 반영할 수 있는지.</summary>
         bool SupportsContext { get; }
 
         bool HasApiKey { get; }
@@ -68,6 +68,25 @@ namespace QuickTranslate
     /// <summary>엔진 구현이 공유하는 HTTP/JSON 도우미.</summary>
     internal static class HttpJson
     {
+        /// <summary>
+        /// 요청당 문장 하나만 받는 엔진용. 여러 문장은 줄바꿈으로 묶어 한 번에 보내고,
+        /// 결과 줄 수가 안 맞으면 하나씩 다시 보낸다.
+        /// </summary>
+        public static async Task<string[]> TranslateLinesAsync(IReadOnlyList<string> texts, Func<string, Task<string>> translateOne)
+        {
+            if (texts.Count == 1)
+                return new[] { await translateOne(texts[0]) };
+
+            string[] lines = (await translateOne(string.Join("\n", texts))).Split('\n');
+            if (lines.Length == texts.Count)
+                return lines;
+
+            var result = new string[texts.Count];
+            for (int i = 0; i < texts.Count; i++)
+                result[i] = await translateOne(texts[i]);
+            return result;
+        }
+
         public static UnityWebRequest CreatePost(string url, string jsonBody)
         {
             var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbPOST)

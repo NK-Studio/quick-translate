@@ -12,16 +12,13 @@ namespace QuickTranslate
         public abstract bool IsValid { get; }
         public abstract Object Context { get; }
 
-        /// <summary>이름이면 이름용 가공(이름 정리형·단어별 조합·대소문자 짝)을 쓰고, 입력칸 텍스트면 문장 그대로 번역한다.</summary>
+        /// <summary>false 면 이름용 가공 없이 문장 그대로 번역한다(입력칸 텍스트).</summary>
         public virtual bool IsName => true;
 
-        /// <summary>팝업 머리에 보여줄 종류 칩. null 이면 표시하지 않는다.</summary>
+        /// <summary>팝업 머리의 종류 칩. null 이면 표시하지 않는다.</summary>
         public virtual string Kind => null;
 
-        /// <summary>
-        /// 원래 창이 키보드 포커스를 잃으면 안 되는 대상(IMGUI 입력칸). 이 창을 주면 팝업을 포커스 없이 띄우고
-        /// 키 입력은 전역 이벤트 훅으로 받는다. null 이면 일반 드롭다운 팝업.
-        /// </summary>
+        /// <summary>포커스를 잃으면 안 되는 창(IMGUI 입력칸). 있으면 팝업을 포커스 없이 띄운다.</summary>
         public virtual EditorWindow SourceWindowToKeepFocused => null;
 
         /// <summary>이름을 바꾼다. 실패하면 사유를, 성공하면 null 을 돌려준다.</summary>
@@ -50,11 +47,9 @@ namespace QuickTranslate
         }
     }
 
-    /// <summary>GUID 로 추적하므로 앞서 상위 폴더 이름이 바뀌어도 계속 유효하다. 에셋 이름 변경은 Undo 되지 않는다.</summary>
+    /// <summary>GUID 로 추적해서 상위 폴더 이름이 먼저 바뀌어도 유효하다. 에셋 이름 변경은 Undo 되지 않는다.</summary>
     internal sealed class AssetTarget : RenameTarget
     {
-        public override string Kind => "에셋";
-
         static readonly char[] InvalidChars = Path.GetInvalidFileNameChars()
             .Concat(new[] { '/', '\\', ':', '*', '?', '"', '<', '>', '|' })
             .Distinct()
@@ -64,14 +59,15 @@ namespace QuickTranslate
 
         public AssetTarget(string guid) => _guid = guid;
 
+        public override string Kind => "에셋";
+
         string AssetPath => AssetDatabase.GUIDToAssetPath(_guid);
 
         public override string Name
         {
             get
             {
-                string path = AssetPath;
-                // 폴더는 "My.Folder" 처럼 점이 이름의 일부일 수 있다.
+                string path = AssetPath; // 폴더는 "My.Folder" 처럼 점이 이름의 일부일 수 있다
                 return AssetDatabase.IsValidFolder(path) ? Path.GetFileName(path) : Path.GetFileNameWithoutExtension(path);
             }
         }
@@ -91,14 +87,10 @@ namespace QuickTranslate
             return string.IsNullOrEmpty(error) ? null : error;
         }
 
-        /// <summary>파일 이름에 쓸 수 없는 문자를 빼고, 끝의 점/공백을 정리한다.</summary>
-        static string Sanitize(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                return null;
-
-            var chars = name.Where(c => System.Array.IndexOf(InvalidChars, c) < 0).ToArray();
-            return new string(chars).Trim().TrimEnd('.', ' ');
-        }
+        /// <summary>파일 이름에 쓸 수 없는 문자를 빼고 끝의 점·공백을 정리한다.</summary>
+        static string Sanitize(string name) =>
+            string.IsNullOrWhiteSpace(name)
+                ? null
+                : new string(name.Where(c => !InvalidChars.Contains(c)).ToArray()).Trim().TrimEnd('.', ' ');
     }
 }

@@ -9,13 +9,13 @@ using UnityEngine.UIElements;
 namespace QuickTranslate
 {
     /// <summary>
-    /// 단축키(기본 Cmd+Shift+X, Windows 는 Ctrl+Shift+X) 진입점. 선택한 이름을 한→영 / 영→한 으로 번역한다.
-    /// Project 창에 포커스가 있으면 에셋 이름(<see cref="ProjectWindowTranslate"/>), 아니면 Hierarchy 의 GameObject 이름.
+    /// 단축키 진입점. 입력칸에 커서가 있으면 그 글을, 아니면 Project 창의 에셋 이름이나
+    /// Hierarchy·Inspector 의 GameObject 이름을 번역한다.
     /// </summary>
     [InitializeOnLoad]
     internal static class HierarchyTranslateCommand
     {
-        // 6.5+ 는 EntityId 기반 API 만 쓸 수 있고(int 기반은 6.7 에서 컴파일 에러), 6.3 에는 EntityId 콜백이 없다.
+        // 6.5 부터 EntityId 콜백만 쓸 수 있다(int 기반은 6.7 에서 에러). 6.3 이하는 int 기반.
 #if UNITY_6000_5_OR_NEWER
         static EntityId ActiveRowKey => Selection.activeEntityId;
         static EntityId _activeRowId;
@@ -27,15 +27,9 @@ namespace QuickTranslate
 #endif
         static Rect _activeRowScreenRect;
 
-        /// <summary>창별 "패널 좌표 → 화면 좌표" 보정값 (window.position 기준).</summary>
-        static readonly Dictionary<EditorWindow, Vector2> OffsetCache = new Dictionary<EditorWindow, Vector2>();
-
-        /// <summary>행 위치를 모를 때 창 위쪽에서 이만큼 내려서 띄운다(탭 + 툴바 + 열 머리글).</summary>
-        internal const float FallbackTopOffset = 72;
-
         static HierarchyTranslateCommand()
         {
-            // 팝업을 선택된 행 바로 아래에 띄우기 위해 활성 오브젝트의 행 위치를 기억한다. (IMGUI Hierarchy 전용)
+            // IMGUI Hierarchy(6.0 등)에서 선택된 행의 위치를 기억해 둔다.
 #if UNITY_6000_5_OR_NEWER
             EditorApplication.hierarchyWindowItemByEntityIdOnGUI += (id, rowRect) =>
 #else
@@ -46,146 +40,103 @@ namespace QuickTranslate
             {
                 if (id != ActiveRowKey)
                     return;
-
                 _activeRowId = id;
                 _activeRowScreenRect = GUIUtility.GUIToScreenRect(rowRect);
             };
         }
 
         [Shortcut("Quick Translate/Translate Selected Names", KeyCode.X, ShortcutModifiers.Action | ShortcutModifiers.Shift)]
-        static void TranslateShortcut() => TranslateSelection();
-
-        static void TranslateSelection()
+        static void TranslateShortcut()
         {
-            // 커서가 있는 텍스트 입력칸이 있으면 그 글(또는 선택한 부분)을 번역해 바꿔 넣는다.
             var focusedWindow = EditorWindow.focusedWindow;
+
             if (TextFieldCapture.TryCapture(focusedWindow, out var textTarget, out var textRect))
             {
-                var textTargets = new List<RenameTarget> { textTarget };
-                Rect WindowTop()
-                {
-                    Rect area = focusedWindow.position;
-                    return new Rect(area.x + 16, area.y + FallbackTopOffset, Mathf.Max(1, area.width - 32), 1);
-                }
-
-                if (textRect == null)
-                    TranslationPopup.Open(textTargets, WindowTop());
-                else
-                    MeasureElement(focusedWindow, textRect, WindowTop, anchor => TranslationPopup.Open(textTargets, anchor));
+                var targets = new List<RenameTarget> { textTarget };
+                PopupAnchor.Measure(focusedWindow, textRect, () => PopupAnchor.BelowWindowTop(focusedWindow),
+                    anchor => TranslationPopup.Open(targets, anchor));
                 return;
             }
 
-            if (ProjectWindowTranslate.IsProjectWindow(EditorWindow.focusedWindow) ||
+            if (ProjectWindowTranslate.IsProjectWindow(focusedWindow) ||
                 (Selection.gameObjects.Length == 0 && Selection.assetGUIDs.Length > 0))
             {
                 ProjectWindowTranslate.TranslateSelection();
                 return;
             }
 
+            TranslateGameObjects(focusedWindow);
+        }
+
+        static void TranslateGameObjects(EditorWindow focusedWindow)
+        {
             var gameObjects = Selection.gameObjects
                 .Where(go => !EditorUtility.IsPersistent(go)) // Project 창에서 고른 프리팹 에셋 제외
                 .Where(go => NameTranslator.DetectDirection(go.name) != TranslationDirection.None)
                 .OrderBy(go => go.scene.handle)
                 .ThenBy(go => HierarchyOrderKey(go.transform))
                 .ToList();
-
-            // 선택이 없거나 번역할 이름이 없으면 아무것도 띄우지 않는다.
             if (gameObjects.Count == 0)
                 return;
 
             var targets = gameObjects.Select(go => (RenameTarget)new GameObjectTarget(go)).ToList();
             void Open(Rect anchor) => TranslationPopup.Open(targets, anchor);
 
-            // [실험] Inspector 에 포커스가 있으면 GameObject 헤더의 이름 칸 바로 아래에 띄운다.
-            if (IsInspectorWindow(EditorWindow.focusedWindow))
-            {
-                OpenAtInspectorNameField(EditorWindow.focusedWindow, Open);
-                return;
-            }
-
-            OpenAtSelectedRow(gameObjects[0].name, Open);
+            if (focusedWindow != null && focusedWindow.GetType().Name == "InspectorWindow")
+                OpenBelowInspectorName(focusedWindow, Open);
+            else
+                OpenBelowSelectedRow(gameObjects[0].name, Open);
         }
 
-        static bool IsInspectorWindow(EditorWindow window) =>
-            window != null && window.GetType().Name == "InspectorWindow";
-
-        /// <summary>
-        /// [실험] Inspector 의 GameObject 헤더(IMGUI)에서 이름 칸 위치를 추정해 그 아래에 연다.
-        /// 헤더 요소는 이름이 "...Header" 인 IMGUIContainer 이며, 이름 칸은 헤더 첫 줄(아이콘·활성 토글 오른쪽)에 있다.
-        /// </summary>
-        static void OpenAtInspectorNameField(EditorWindow inspector, Action<Rect> open)
+        /// <summary>Inspector GameObject 헤더의 이름 칸 아래. 칸 위치는 Unity 6 기본 레이아웃 기준으로 맞춘 값이다.</summary>
+        static void OpenBelowInspectorName(EditorWindow inspector, Action<Rect> open)
         {
-            // 이름 칸을 편집 중이었다면 편집을 끝내서, 팝업으로 바꾼 이름을 필드가 되돌려 쓰지 않게 한다.
-            if (EditorGUIUtility.editingTextField)
-            {
-                EditorGUIUtility.editingTextField = false;
-                GUIUtility.keyboardControl = 0;
-            }
-
             var containers = inspector.rootVisualElement.Query<IMGUIContainer>().ToList();
-            var header = containers.FirstOrDefault(c => c.name.EndsWith("Header", StringComparison.Ordinal) &&
-                                                        c.worldBound.height >= 30)
-                         ?? containers.FirstOrDefault(c => c.worldBound.height >= 30 && c.worldBound.height <= 90 &&
-                                                           c.worldBound.width > 100);
-
-            Rect Fallback()
-            {
-                Rect area = inspector.position;
-                return new Rect(area.x + 16, area.y + FallbackTopOffset, Mathf.Max(1, area.width - 32), 1);
-            }
-
+            var header = containers.FirstOrDefault(c => c.name.EndsWith("Header", StringComparison.Ordinal) && c.worldBound.height >= 30)
+                         ?? containers.FirstOrDefault(c => c.worldBound.height >= 30 && c.worldBound.height <= 90 && c.worldBound.width > 100);
             if (header == null)
             {
-                open(Fallback());
+                open(PopupAnchor.BelowWindowTop(inspector));
                 return;
             }
 
-            // 헤더 기준 이름 칸 위치(Unity 6 기본 레이아웃): 왼쪽에서 약 66pt, 위에서 5pt, 높이 19pt, 오른쪽 Static 토글 앞까지.
-            const float NameLeft = 66, NameTop = 5, NameHeight = 19, RightReserved = 70;
-            // 이름 칸 바로 밑에 붙이면 팝업 테두리가 칸 아래쪽을 덮으므로 조금 띄운다(값은 눈으로 맞춤).
-            const float PopupGap = 4;
-            MeasureElement(inspector, () =>
+            const float NameLeft = 66, NameTop = 9, NameHeight = 19, RightReserved = 70;
+            PopupAnchor.Measure(inspector, () =>
             {
                 Rect h = header.worldBound;
-                return new Rect(h.x + NameLeft, h.y + NameTop + PopupGap, Mathf.Max(1, h.width - NameLeft - RightReserved), NameHeight);
-            }, Fallback, open);
+                return new Rect(h.x + NameLeft, h.y + NameTop, Mathf.Max(1, h.width - NameLeft - RightReserved), NameHeight);
+            }, () => PopupAnchor.BelowWindowTop(inspector), open);
         }
 
-        /// <summary>선택된 행 바로 아래(모르면 Hierarchy 창 왼쪽 위)를 기준으로 팝업을 연다.</summary>
-        static void OpenAtSelectedRow(string rowName, Action<Rect> open)
+        static void OpenBelowSelectedRow(string rowName, Action<Rect> open)
         {
-            // Unity 6.3+ 새 Hierarchy (UI Toolkit): 행 위치를 실제로 측정한 뒤 연다.
-            if (rowName != null && TryFindSelectedRow(rowName, out var window, out var row, out var nameText))
+            if (TryFindSelectedRow(rowName, out var window, out var row, out var nameText))
             {
-                MeasureRow(window, row, nameText, open);
+                PopupAnchor.Measure(window, () =>
+                {
+                    Rect rowBound = row.worldBound;
+                    float x = nameText != null ? nameText.worldBound.x : rowBound.x;
+                    return new Rect(x, rowBound.y, Mathf.Max(1, rowBound.xMax - x), rowBound.height);
+                }, ImguiRowOrWindowTop, open);
                 return;
             }
 
-            open(GetFallbackAnchorRect());
+            open(ImguiRowOrWindowTop());
         }
 
-        /// <summary>팝업을 띄울 기준 영역(화면 좌표). 드롭다운은 이 영역 바로 아래에 열린다.</summary>
-        static Rect GetFallbackAnchorRect()
+        static Rect ImguiRowOrWindowTop()
         {
             var window = FindHierarchyWindow() ?? EditorWindow.focusedWindow;
-            Rect area = window != null ? window.position : new Rect(200, 200, 400, 300);
+            bool rowKnown = _activeRowId == ActiveRowKey && _activeRowScreenRect.width > 0 &&
+                            window != null && window.position.Contains(_activeRowScreenRect.center);
+            if (!rowKnown)
+                return PopupAnchor.BelowWindowTop(window);
 
-            // 기존(IMGUI) Hierarchy. 기억한 행 위치가 창 안에 있을 때만 쓴다.
-            if (_activeRowId == ActiveRowKey && _activeRowScreenRect.width > 0 &&
-                area.Contains(_activeRowScreenRect.center))
-            {
-                var r = _activeRowScreenRect;
-                return new Rect(r.x + 16, r.y, Mathf.Max(1, r.width - 16), r.height);
-            }
-
-            // 행 위치를 모르면(스크롤로 가려짐 등) 탭·툴바·열 머리글 아래쪽에 띄운다.
-            return new Rect(area.x + 16, area.y + FallbackTopOffset, Mathf.Max(1, area.width - 32), 1);
+            var r = _activeRowScreenRect;
+            return new Rect(r.x + 16, r.y, Mathf.Max(1, r.width - 16), r.height);
         }
 
-        /// <summary>
-        /// 새 Hierarchy 는 MultiColumnListView 라 hierarchyWindowItemOnGUI 가 호출되지 않는다.
-        /// 선택된 행 요소(unity-collection-view__item--selected)와 그 안의 이름 텍스트를 찾는다.
-        /// </summary>
+        /// <summary>새 Hierarchy(6.3+, UI Toolkit)에서 선택된 행과 그 안의 이름 텍스트를 찾는다.</summary>
         static bool TryFindSelectedRow(string targetName, out EditorWindow window, out VisualElement row, out TextElement nameText)
         {
             row = null;
@@ -194,118 +145,20 @@ namespace QuickTranslate
             if (window == null)
                 return false;
 
-            VisualElement foundRow = null;
-            TextElement foundText = null;
-            window.rootVisualElement.Query(className: "unity-collection-view__item--selected").ForEach(candidate =>
+            foreach (var candidate in window.rootVisualElement.Query(className: "unity-collection-view__item--selected").ToList())
             {
-                if (foundText != null)
-                    return;
-
                 var text = candidate.Query<TextElement>().Where(t => t.text == targetName).First();
                 if (text != null)
                 {
-                    foundRow = candidate;
-                    foundText = text;
+                    row = candidate;
+                    nameText = text;
+                    break;
                 }
-                else if (foundRow == null)
-                {
-                    foundRow = candidate;
-                }
-            });
 
-            row = foundRow;
-            nameText = foundText;
+                row ??= candidate;
+            }
+
             return row != null && row.worldBound.height > 0;
-        }
-
-        /// <summary>
-        /// EditorWindow.position 과 패널 좌표의 기준점은 도킹 상태(탭 높이 등)에 따라 어긋난다.
-        /// 1x1 IMGUIContainer 를 잠깐 넣어 GUIToScreenPoint 로 패널 좌표 → 화면 좌표를 정확히 잰다.
-        /// </summary>
-        static void MeasureRow(EditorWindow window, VisualElement row, TextElement nameText, Action<Rect> open)
-        {
-            MeasureElement(window, () =>
-            {
-                Rect rowBound = row.worldBound;
-                float x = nameText != null ? nameText.worldBound.x : rowBound.x;
-                return new Rect(x, rowBound.y, Mathf.Max(1, rowBound.xMax - x), rowBound.height);
-            }, GetFallbackAnchorRect, open);
-        }
-
-        /// <summary>
-        /// window 패널 좌표계의 영역(panelRect)을 화면 좌표로 바꿔 open 에 넘긴다.
-        /// 측정값이 창 밖이거나 창이 다시 그려지지 않으면 fallback 을 쓴다.
-        /// </summary>
-        static void MeasureElement(EditorWindow window, Func<Rect> panelRect, Func<Rect> fallback,
-            Action<Rect> open)
-        {
-            // 패널 좌표 → 화면 좌표 차이(탭 높이 등)는 창이 움직여도 일정하다.
-            // 한 번 잰 값이 있으면 다시 그려질 때까지 기다리지 않고 바로 연다.
-            if (OffsetCache.TryGetValue(window, out Vector2 cachedOffset))
-            {
-                Rect rect = panelRect();
-                var anchor = new Rect(window.position.position + cachedOffset + rect.position, rect.size);
-                if (window.position.Contains(new Vector2(anchor.x + 1, anchor.center.y)))
-                {
-                    open(anchor);
-                    return;
-                }
-
-                OffsetCache.Remove(window); // 도킹 상태가 바뀌었을 수 있다 → 다시 잰다.
-            }
-
-            bool finished = false;
-            int framesLeft = 30;
-            var probe = new IMGUIContainer { pickingMode = PickingMode.Ignore };
-            probe.style.position = Position.Absolute;
-            probe.style.left = 0;
-            probe.style.top = 0;
-            probe.style.width = 1;
-            probe.style.height = 1;
-
-            void Finish(Rect anchor)
-            {
-                if (finished)
-                    return;
-
-                // 측정값이 창 밖이면(좌표 기준이 어긋난 경우) 믿지 않는다.
-                Rect bounds = window.position;
-                if (!bounds.Contains(new Vector2(anchor.x + 1, anchor.center.y)))
-                    anchor = fallback();
-
-                finished = true;
-                EditorApplication.update -= Timeout;
-                EditorApplication.delayCall += () =>
-                {
-                    probe.RemoveFromHierarchy();
-                    open(anchor);
-                };
-            }
-
-            // 창이 다시 그려지지 않는 경우를 대비한 안전장치
-            void Timeout()
-            {
-                if (--framesLeft <= 0)
-                    Finish(fallback());
-            }
-
-            probe.onGUIHandler = () =>
-            {
-                if (finished || Event.current.type != EventType.Repaint)
-                    return;
-
-                Vector2 probeScreen = GUIUtility.GUIToScreenPoint(Vector2.zero);
-                Vector2 probeWorld = probe.worldBound.position;
-                OffsetCache[window] = probeScreen - probeWorld - window.position.position;
-                Rect rect = panelRect();
-                Finish(new Rect(probeScreen.x + rect.x - probeWorld.x, probeScreen.y + rect.y - probeWorld.y,
-                    rect.width, rect.height));
-            };
-
-            EditorApplication.update += Timeout;
-            window.rootVisualElement.Add(probe);
-            probe.MarkDirtyRepaint();
-            window.Repaint();
         }
 
         static EditorWindow FindHierarchyWindow()
@@ -318,13 +171,12 @@ namespace QuickTranslate
             }
 
             var focused = EditorWindow.focusedWindow;
-            if (focused != null && IsHierarchy(focused))
-                return focused;
-
-            return Resources.FindObjectsOfTypeAll<EditorWindow>().FirstOrDefault(IsHierarchy);
+            return focused != null && IsHierarchy(focused)
+                ? focused
+                : Resources.FindObjectsOfTypeAll<EditorWindow>().FirstOrDefault(IsHierarchy);
         }
 
-        /// <summary>Hierarchy 상의 표시 순서대로 정렬하기 위한 키 (형제 인덱스 경로).</summary>
+        /// <summary>Hierarchy 표시 순서대로 정렬하기 위한 키(형제 인덱스 경로).</summary>
         static string HierarchyOrderKey(Transform t)
         {
             var path = new List<string>();

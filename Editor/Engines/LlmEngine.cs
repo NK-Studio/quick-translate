@@ -9,19 +9,14 @@ using UnityEngine.Networking;
 
 namespace QuickTranslate
 {
-    /// <summary>
-    /// 번역 결과 하나가 아니라 순위가 매겨진 이름 후보 여러 개를 직접 만들 수 있는 엔진(AI).
-    /// <see cref="NameTranslator"/> 는 이 인터페이스가 있으면 단어별 조합 대신 이 결과를 후보로 쓴다.
-    /// </summary>
+    /// <summary>순위가 매겨진 후보를 직접 만드는 엔진(AI). 있으면 단어별 조합 대신 이 결과를 쓴다.</summary>
     internal interface ICandidateEngine
     {
         Task<IReadOnlyList<string>> SuggestAsync(string text, TranslationDirection direction, int count,
             IReadOnlyList<KeyValuePair<string, string>> glossary, string context, CancellationToken ct, bool nameMode = true);
     }
 
-    /// <summary>
-    /// AI(LLM) 번역 엔진 공통부: 프롬프트 작성과 응답(JSON 배열) 해석. 공급자별 차이는 <see cref="CompleteAsync"/> 만 구현한다.
-    /// </summary>
+    /// <summary>AI 엔진 공통부: 지시문 작성과 응답(JSON 배열) 해석. 공급자별로는 <see cref="CompleteAsync"/> 만 구현한다.</summary>
     internal abstract class LlmEngine : ITranslationEngine, ICandidateEngine
     {
 #pragma warning disable 0649
@@ -87,7 +82,7 @@ namespace QuickTranslate
             return candidates;
         }
 
-        /// <summary>일반 번역 경로(단어별 번역 등)용. 입력과 같은 순서·개수의 JSON 배열로 받는다.</summary>
+        /// <summary>일반 번역 경로용. 입력과 같은 순서·개수의 JSON 배열로 받는다.</summary>
         public async Task<string[]> TranslateAsync(IReadOnlyList<string> texts, TranslationDirection direction, string context,
             CancellationToken ct)
         {
@@ -106,7 +101,7 @@ namespace QuickTranslate
             return result.ToArray();
         }
 
-        /// <summary>응답에서 JSON 문자열 배열을 꺼낸다. 코드 블록 등으로 감싸져 있어도 첫 '[' ~ 마지막 ']' 를 읽는다.</summary>
+        /// <summary>응답에서 JSON 문자열 배열을 꺼낸다(코드 블록에 감싸져 있어도 첫 '[' ~ 마지막 ']').</summary>
         static List<string> ParseStringArray(string response)
         {
             var result = new List<string>();

@@ -7,22 +7,12 @@ using UnityEngine.UIElements;
 
 namespace QuickTranslate
 {
-    /// <summary>
-    /// 개인 설정. API 키는 프로젝트 루트의 .env(<see cref="EnvFile"/>)에서, 나머지는 EditorPrefs 에서 읽는다.
-    /// 둘 다 프로젝트 에셋이 아니므로 VCS 에 포함되지 않는다.
-    /// </summary>
+    /// <summary>개인 설정. API 키는 프로젝트 루트의 .env(<see cref="EnvFile"/>), 나머지는 EditorPrefs 에 둔다.</summary>
     internal static class TranslatorSettings
     {
         public const string PreferencesPath = "Preferences/Quick Translate";
 
         const string Prefix = "QuickTranslate.";
-
-        // 이전 이름(Quick Translate) 시절의 EditorPrefs 접두사. 설정 이전에만 쓴다.
-        internal const string LegacyPrefix = "HierarchyTranslator" + ".";
-
-        // 이전 버전에서 EditorPrefs 에 저장하던 API 키. .env 로 옮기는 버튼에서만 사용한다.
-        const string LegacyDeepLKeyPref = LegacyPrefix + "DeepLApiKey";
-        const string LegacyGoogleKeyPref = LegacyPrefix + "GoogleApiKey";
 
         public const string DefaultContext =
             "This text is the name of a GameObject in the Unity game engine hierarchy. " +
@@ -35,7 +25,7 @@ namespace QuickTranslate
         {
             get
             {
-                // 제거된 엔진(예: 1.2.0 의 Claude Code)이 저장돼 있으면 기본 엔진으로 되돌린다.
+                // 1.2.0 의 Claude Code 처럼 없어진 엔진이 저장돼 있으면 기본값으로
                 var value = (TranslationEngineKind)EditorPrefs.GetInt(Prefix + "Engine", (int)TranslationEngineKind.GoogleFree);
                 return System.Enum.IsDefined(typeof(TranslationEngineKind), value) ? value : TranslationEngineKind.GoogleFree;
             }
@@ -168,7 +158,6 @@ namespace QuickTranslate
         {
             var page = TranslatorStyles.CreateSettingsPage(root, "Quick Translate");
 
-            // ── 번역 엔진 ──
             page.Add(TranslatorStyles.SectionTitle("번역 엔진"));
             var engineField = TranslatorStyles.Aligned(new EnumField("엔진", Engine));
             page.Add(engineField);
@@ -183,13 +172,11 @@ namespace QuickTranslate
             });
             deepLGroup.Add(englishVariant);
             deepLGroup.Add(TranslatorStyles.Note("키가 ':fx' 로 끝나면 Free API(api-free.deepl.com), 아니면 Pro API(api.deepl.com)를 사용합니다."));
-            page.Add(deepLGroup);
 
             var googleGroup = new VisualElement();
             googleGroup.Add(TranslatorStyles.Note(
                 "Google Cloud Translation API (Basic, v2) 키가 필요합니다. Google Cloud 콘솔에서 'Cloud Translation API' 를 " +
                 "사용 설정한 뒤 API 키를 만드세요. 문맥(context)을 지원하지 않아 DeepL 보다 후보 수가 적을 수 있습니다."));
-            page.Add(googleGroup);
 
             var googleFreeGroup = new VisualElement();
             googleFreeGroup.Add(new HelpBox(
@@ -198,14 +185,12 @@ namespace QuickTranslate
                 "• 요청이 많거나 네트워크에 따라 'automated queries' 로 차단될 수 있습니다.\n" +
                 "• 번역할 이름이 URL 에 담겨 Google 로 전송됩니다.\n" +
                 "업무용으로는 DeepL 또는 Google(공식 API)을 권장합니다.", HelpBoxMessageType.Warning));
-            page.Add(googleFreeGroup);
 
             var papagoGroup = new VisualElement();
             papagoGroup.Add(TranslatorStyles.Note(
                 "네이버 클라우드 플랫폼 > AI·NAVER API > Papago Translation 을 이용 신청한 뒤, " +
                 "Application 의 Client ID / Client Secret 을 .env 에 넣으세요. " +
                 "문맥(context)을 지원하지 않아 DeepL 보다 후보 수가 적을 수 있습니다."));
-            page.Add(papagoGroup);
 
             var claudeGroup = CreateAiGroup("Anthropic 콘솔(console.anthropic.com)에서 API 키를 만들어 .env 에 넣으세요.",
                 () => ClaudeModel, v => ClaudeModel = v, ClaudeModels);
@@ -213,15 +198,24 @@ namespace QuickTranslate
                 () => OpenAIModel, v => OpenAIModel = v, OpenAIModels);
             var geminiGroup = CreateAiGroup("Google AI Studio(aistudio.google.com)에서 API 키를 만들어 .env 에 넣으세요.",
                 () => GeminiModel, v => GeminiModel = v, GeminiModels);
-            page.Add(claudeGroup);
-            page.Add(openAIGroup);
-            page.Add(geminiGroup);
 
-            // 문맥: 지원하는 엔진(DeepL, AI)을 고를 때만 보인다. 항목은 아래에서 채운다.
-            var contextGroup = new VisualElement();
+            // 선택한 엔진의 묶음만 보인다.
+            var engineGroups = new Dictionary<TranslationEngineKind, VisualElement>
+            {
+                [TranslationEngineKind.DeepL] = deepLGroup,
+                [TranslationEngineKind.Google] = googleGroup,
+                [TranslationEngineKind.GoogleFree] = googleFreeGroup,
+                [TranslationEngineKind.Papago] = papagoGroup,
+                [TranslationEngineKind.Claude] = claudeGroup,
+                [TranslationEngineKind.OpenAI] = openAIGroup,
+                [TranslationEngineKind.Gemini] = geminiGroup
+            };
+            foreach (var group in engineGroups.Values)
+                page.Add(group);
+
+            var contextGroup = new VisualElement(); // 문맥을 지원하는 엔진(DeepL, AI)일 때만 보인다
             page.Add(contextGroup);
 
-            // ── API 키 (.env) ──
             var keySection = new VisualElement();
             keySection.Add(TranslatorStyles.SectionTitle("API 키 (.env)"));
             var keyStatus = new Label();
@@ -237,17 +231,14 @@ namespace QuickTranslate
             var openButton = new Button { text = ".env 열기" };
             var revealButton = new Button { text = "Finder 에서 보기" };
             var reloadButton = new Button { text = "다시 읽기" };
-            var migrateButton = new Button { text = "기존 키를 .env 로 옮기기", tooltip = "이전 버전에서 Preferences 에 저장한 키를 .env 로 옮기고 Preferences 에서는 지웁니다." };
             keyButtons.Add(createButton);
             keyButtons.Add(fillButton);
             keyButtons.Add(openButton);
             keyButtons.Add(revealButton);
             keyButtons.Add(reloadButton);
-            keyButtons.Add(migrateButton);
             keySection.Add(keyButtons);
             page.Add(keySection);
 
-            // ── 후보 ──
             page.Add(TranslatorStyles.SectionTitle("후보"));
             var maxCandidates = TranslatorStyles.Aligned(new SliderInt("최대 후보 수", 1, 9) { value = MaxCandidates, showInputField = true });
             maxCandidates.RegisterValueChangedCallback(e =>
@@ -293,17 +284,11 @@ namespace QuickTranslate
             void Refresh()
             {
                 var engine = Engine;
-                deepLGroup.style.display = engine == TranslationEngineKind.DeepL ? DisplayStyle.Flex : DisplayStyle.None;
-                googleGroup.style.display = engine == TranslationEngineKind.Google ? DisplayStyle.Flex : DisplayStyle.None;
-                googleFreeGroup.style.display = engine == TranslationEngineKind.GoogleFree ? DisplayStyle.Flex : DisplayStyle.None;
-                papagoGroup.style.display = engine == TranslationEngineKind.Papago ? DisplayStyle.Flex : DisplayStyle.None;
-                claudeGroup.style.display = engine == TranslationEngineKind.Claude ? DisplayStyle.Flex : DisplayStyle.None;
-                openAIGroup.style.display = engine == TranslationEngineKind.OpenAI ? DisplayStyle.Flex : DisplayStyle.None;
-                geminiGroup.style.display = engine == TranslationEngineKind.Gemini ? DisplayStyle.Flex : DisplayStyle.None;
+                foreach (var pair in engineGroups)
+                    SetVisible(pair.Value, pair.Key == engine);
 
-                // 키가 필요한 엔진만 .env 상태를 보여준다.
                 string[] envKeys = RequiredEnvKeys(engine);
-                keySection.style.display = envKeys.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+                SetVisible(keySection, envKeys.Length > 0);
                 if (envKeys.Length > 0)
                 {
                     string[] missing = envKeys.Where(k => EnvFile.Get(k).Length == 0).ToArray();
@@ -315,13 +300,12 @@ namespace QuickTranslate
                     keyStatus.EnableInClassList("qt-key-status--missing", !hasKeys);
                 }
 
-                createButton.style.display = EnvFile.Exists ? DisplayStyle.None : DisplayStyle.Flex;
-                fillButton.style.display = EnvFile.Exists && !EnvFile.HasAllKeys(envKeys) ? DisplayStyle.Flex : DisplayStyle.None;
+                SetVisible(createButton, !EnvFile.Exists);
+                SetVisible(fillButton, EnvFile.Exists && !EnvFile.HasAllKeys(envKeys));
                 openButton.SetEnabled(EnvFile.Exists);
                 revealButton.SetEnabled(EnvFile.Exists);
-                migrateButton.style.display = HasLegacyKeys() ? DisplayStyle.Flex : DisplayStyle.None;
 
-                contextGroup.style.display = TranslationEngines.Current.SupportsContext ? DisplayStyle.Flex : DisplayStyle.None;
+                SetVisible(contextGroup, TranslationEngines.Current.SupportsContext);
                 contextField.SetEnabled(UseContext);
                 resetContext.SetEnabled(UseContext);
             }
@@ -340,42 +324,24 @@ namespace QuickTranslate
             });
             createButton.clicked += () =>
             {
-                EnvFile.FillMissing(new[]
-                {
-                    new KeyValuePair<string, string>(EnvFile.DeepLApiKey, string.Empty),
-                    new KeyValuePair<string, string>(EnvFile.GoogleApiKey, string.Empty),
-                    new KeyValuePair<string, string>(EnvFile.PapagoClientId, string.Empty),
-                    new KeyValuePair<string, string>(EnvFile.PapagoClientSecret, string.Empty),
-                    new KeyValuePair<string, string>(EnvFile.AnthropicApiKey, string.Empty),
-                    new KeyValuePair<string, string>(EnvFile.OpenAIApiKey, string.Empty),
-                    new KeyValuePair<string, string>(EnvFile.GeminiApiKey, string.Empty)
-                });
-                MigrateLegacyKeys();
+                EnvFile.AddMissingKeys(EnvFile.AllKeys);
                 Refresh();
             };
             fillButton.clicked += () =>
             {
-                EnvFile.FillMissing(RequiredEnvKeys(Engine).Select(k => new KeyValuePair<string, string>(k, string.Empty)));
+                EnvFile.AddMissingKeys(RequiredEnvKeys(Engine));
                 Refresh();
             };
             openButton.clicked += () => EditorUtility.OpenWithDefaultApp(EnvFile.FilePath);
             revealButton.clicked += () => EditorUtility.RevealInFinder(EnvFile.FilePath);
             reloadButton.clicked += Refresh;
-            migrateButton.clicked += () =>
-            {
-                MigrateLegacyKeys();
-                Refresh();
-            };
 
-            // 외부 편집기에서 .env 를 고치고 돌아왔을 때 반영되도록 주기적으로 갱신한다.
+            // 외부 편집기에서 .env 를 고치고 돌아와도 반영되게 주기적으로 갱신한다.
             page.schedule.Execute(Refresh).Every(1000);
             Refresh();
         }
 
-        /// <summary>
-        /// AI 엔진 공통: 모델 드롭다운 + 안내. 목록 끝의 "직접 입력…" 을 고르면 모델 ID 를 직접 적을 수 있다.
-        /// 저장된 모델이 목록에 없으면 "직접 입력…" 상태로 보여준다.
-        /// </summary>
+        /// <summary>AI 엔진 공통: 모델 드롭다운. 목록에 없는 모델은 "직접 입력…" 으로 적는다.</summary>
         static VisualElement CreateAiGroup(string keyHint, System.Func<string> getModel, System.Action<string> setModel,
             (string id, string label)[] models)
         {
@@ -391,8 +357,7 @@ namespace QuickTranslate
             var customField = TranslatorStyles.Aligned(new TextField("모델 ID") { value = current, isDelayed = true });
             customField.tooltip = $"비워 두면 기본값({defaultModel})을 사용합니다.";
 
-            void UpdateCustomVisibility() =>
-                customField.style.display = dropdown.index == choices.Count - 1 ? DisplayStyle.Flex : DisplayStyle.None;
+            void UpdateCustomVisibility() => SetVisible(customField, dropdown.index == choices.Count - 1);
 
             dropdown.RegisterValueChangedCallback(_ =>
             {
@@ -423,26 +388,7 @@ namespace QuickTranslate
             return group;
         }
 
-        static bool HasLegacyKeys() =>
-            EditorPrefs.GetString(LegacyDeepLKeyPref, string.Empty).Length > 0 ||
-            EditorPrefs.GetString(LegacyGoogleKeyPref, string.Empty).Length > 0;
-
-        /// <summary>이전 버전에서 EditorPrefs 에 저장한 키를 .env 로 옮긴다. (.env 에 이미 값이 있으면 그 값을 유지)</summary>
-        static void MigrateLegacyKeys()
-        {
-            var legacy = new[]
-            {
-                new KeyValuePair<string, string>(EnvFile.DeepLApiKey, EditorPrefs.GetString(LegacyDeepLKeyPref, string.Empty)),
-                new KeyValuePair<string, string>(EnvFile.GoogleApiKey, EditorPrefs.GetString(LegacyGoogleKeyPref, string.Empty))
-            }.Where(pair => pair.Value.Length > 0).ToArray();
-
-            if (legacy.Length == 0)
-                return;
-
-            EnvFile.FillMissing(legacy);
-            EditorPrefs.DeleteKey(LegacyDeepLKeyPref);
-            EditorPrefs.DeleteKey(LegacyGoogleKeyPref);
-            Changed();
-        }
+        static void SetVisible(VisualElement element, bool visible) =>
+            element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
     }
 }
