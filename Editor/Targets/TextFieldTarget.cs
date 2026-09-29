@@ -280,10 +280,11 @@ namespace QuickTranslate
             if (_window == null)
                 return "입력칸이 있던 창이 닫혔습니다.";
 
-            // 팝업이 포커스를 가져가지 않았다면 입력칸은 아직 편집 중이므로 다음 틱에 바로 붙여넣는다.
-            if (IsStillEditing())
+            // 팝업이 포커스를 가져가지 않아 원래 창이 그대로 포커스를 갖고 있으면, 입력칸은 아직 편집 중이다.
+            // (keyboardControl 은 OnGUI 밖에서 읽으면 믿을 수 없어 미리 검사하지 않고, 붙여넣은 결과로 판단한다.)
+            if (EditorWindow.focusedWindow == _window)
             {
-                EditorApplication.delayCall += () => Paste(newName);
+                EditorApplication.delayCall += () => Paste(newName, checkEditingFirst: false);
                 return null;
             }
 
@@ -296,20 +297,26 @@ namespace QuickTranslate
             {
                 if (!IsStillEditing())
                     RestoreEditing();
-            }, () => Paste(newName));
+            }, () => Paste(newName, checkEditingFirst: true));
             return null;
         }
 
-        void Paste(string text)
+        void Paste(string text, bool checkEditingFirst)
         {
             if (_window == null)
                 return;
 
             bool wholeText = _length == _original.Length;
             string current = _editor.text ?? string.Empty;
-            if (!IsStillEditing() || (current != _original && !wholeText))
+            if (current != _original && !wholeText)
             {
-                FallBackToClipboard(text);
+                FallBackToClipboard(text, "입력칸 내용이 바뀌어 선택했던 부분을 찾을 수 없음");
+                return;
+            }
+
+            if (checkEditingFirst && !IsStillEditing())
+            {
+                FallBackToClipboard(text, "편집 상태를 되살리지 못함 " + DescribeState());
                 return;
             }
 
@@ -344,13 +351,20 @@ namespace QuickTranslate
             }
 
             if (!pasted)
-                FallBackToClipboard(text);
+                FallBackToClipboard(text, $"붙여넣기 후 입력칸 글이 바뀌지 않음(현재: \"{_editor.text}\") " + DescribeState());
         }
 
-        static void FallBackToClipboard(string text)
+        /// <summary>실패 원인을 찾기 위한 현재 상태 요약.</summary>
+        string DescribeState() =>
+            $"[editing={EditorGUIUtility.editingTextField}, activeIsOurs={GetActiveEditor() == _editor}, " +
+            $"editor={_editor.GetType().Name}, controlID={_editor.controlID}/{_controlId}, " +
+            $"focusedWindow={(EditorWindow.focusedWindow != null ? EditorWindow.focusedWindow.GetType().Name : "null")}, " +
+            $"source={_window.GetType().Name}]";
+
+        static void FallBackToClipboard(string text, string reason)
         {
             EditorGUIUtility.systemCopyBuffer = text;
-            Debug.LogWarning("[Quick Translate] 입력칸에 번역을 바로 넣지 못했습니다. 번역 결과를 클립보드에 복사했으니 붙여넣어 주세요.");
+            Debug.LogWarning("[Quick Translate] 입력칸에 번역을 바로 넣지 못했습니다. 번역 결과를 클립보드에 복사했으니 붙여넣어 주세요.\n원인: " + reason);
         }
     }
 }

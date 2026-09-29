@@ -125,8 +125,9 @@ namespace QuickTranslate
                 // ShowMode.PopupMenu, giveFocus: false
                 showWithMode.Invoke(this, new[] { Enum.ToObject(modeType, 1), (object)false });
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                Debug.LogWarning($"[Quick Translate] 포커스 없이 팝업을 띄우지 못해 일반 팝업으로 엽니다: {e.GetBaseException().Message}");
                 return false;
             }
 
