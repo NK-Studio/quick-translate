@@ -12,6 +12,7 @@ Hierarchy 나 Project 창에서 선택하고 단축키를 누르면, 선택한 �
 
 ### 특징
 - <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> (Windows: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>) 단축키를 눌러 한글이 있으면 한→영, 영문만 있으면 영→한으로 자동 판별
+- **어떤 텍스트 입력칸에서도** 동작: Inspector 문자열 필드, TextMeshPro 텍스트, 이름 바꾸기 칸 등에 커서를 두고 단축키를 누르면 칸의 글(드래그로 선택했다면 그 부분)을 번역해 바로 바꿔 넣음
 - 여러 개 선택 시 차례로 처리, `Shift+Enter` 로 나머지 일괄 적용
 - GameObject 이름 변경은 Undo 지원 (에셋 이름 변경은 Unity 특성상 Undo 불가)
 - 번역 엔진 선택: Google(무료·실험적), Google Cloud Translation, DeepL, Papago, Claude, ChatGPT, Gemini
@@ -36,6 +37,11 @@ https://github.com/NK-Studio/quick-translate.git
 1. **Hierarchy · Project · Inspector** 어디서든 이름을 바꿀 GameObject / 에셋을 선택합니다.
 2. <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> (Windows: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>) 를 누릅니다.
 3. 선택한 이름 바로 아래에 뜬 팝업에서 후보를 고르고 <kbd>Enter</kbd> 로 적용합니다.
+
+> [!NOTE]
+> **텍스트 입력칸**에 커서가 있을 때 단축키를 누르면, 이름 대신 그 칸의 글을 번역합니다. 일부를 드래그로 선택했다면 그 부분만 번역해 바꿔 넣습니다.
+> 긴 문장은 이름용 가공(대소문자 짝 등) 없이 문장 그대로 번역하고, 줄바꿈·`{0}` 같은 자리 표시자는 유지하도록 합니다.
+> IMGUI 로 그려진 입력칸(TextMeshPro 등)은 붙여넣기 명령으로 값을 넣기 때문에 **클립보드를 잠깐 거쳤다가 원래 내용으로 되돌립니다.**
 
 <table>
   <tr>

@@ -107,7 +107,7 @@ namespace QuickTranslate
             var header = AddTo(_panel, new VisualElement(), "qt-header");
             var chips = AddTo(header, new VisualElement(), "qt-header__chips");
             _directionChip = AddTo(chips, new Label(), "qt-chip", "qt-chip--direction");
-            _kindChip = AddTo(chips, new Label("에셋"), "qt-chip");
+            _kindChip = AddTo(chips, new Label(), "qt-chip");
             AddTo(chips, new VisualElement(), "qt-spacer");
             _counter = AddTo(chips, new Label(), "qt-counter");
 
@@ -200,11 +200,11 @@ namespace QuickTranslate
 
             // 다음 항목도 미리 번역해 둔다.
             if (_targetIndex + 1 < _targets.Count && _targets[_targetIndex + 1].IsValid)
-                NameTranslator.Prefetch(_targets[_targetIndex + 1].Name);
+                NameTranslator.Prefetch(_targets[_targetIndex + 1].Name, _targets[_targetIndex + 1].IsName);
 
             try
             {
-                var candidates = await NameTranslator.GetCandidatesAsync(Current.Name, token);
+                var candidates = await NameTranslator.GetCandidatesAsync(Current.Name, token, Current.IsName);
                 if (this == null || token.IsCancellationRequested)
                     return;
                 _candidates = candidates;
@@ -276,7 +276,7 @@ namespace QuickTranslate
                 Refresh();
                 try
                 {
-                    var candidates = await NameTranslator.GetCandidatesAsync(target.Name, token);
+                    var candidates = await NameTranslator.GetCandidatesAsync(target.Name, token, target.IsName);
                     if (this == null || token.IsCancellationRequested)
                         return;
                     string error = target.Rename(candidates[0]);
@@ -310,11 +310,12 @@ namespace QuickTranslate
 
             bool toKorean = NameTranslator.DetectDirection(Current.Name) == TranslationDirection.EnglishToKorean;
             _directionChip.text = toKorean ? "EN → KO" : "KO → EN";
-            SetVisible(_kindChip, Current is AssetTarget);
+            SetVisible(_kindChip, Current.Kind != null);
+            _kindChip.text = Current.Kind ?? string.Empty;
             SetVisible(_counter, _targets.Count > 1);
             _counter.text = $"{_targetIndex + 1} / {_targets.Count}";
-            _source.text = Current.Name;
-            _sourceIcon.image = AssetPreview.GetMiniThumbnail(Current.Context);
+            _source.text = SingleLine(Current.Name);
+            _sourceIcon.image = Current.Context != null ? AssetPreview.GetMiniThumbnail(Current.Context) : null;
             SetVisible(_sourceIcon, _sourceIcon.image != null);
 
             bool showError = !_loading && _error != null;
@@ -357,7 +358,7 @@ namespace QuickTranslate
                 var row = new VisualElement();
                 row.AddToClassList("qt-row");
 
-                var text = new Label(_candidates[i]);
+                var text = new Label(SingleLine(_candidates[i]));
                 text.AddToClassList("qt-row__text");
                 row.Add(text);
 
@@ -488,6 +489,10 @@ namespace QuickTranslate
 
         string SelectedCandidate() =>
             _candidates != null && _selected < _candidates.Count ? _candidates[_selected] : null;
+
+        /// <summary>여러 줄 텍스트를 한 줄로 보여준다(적용할 때는 원문 그대로).</summary>
+        static string SingleLine(string text) =>
+            text == null ? string.Empty : text.Trim().Replace("\r\n", " ⏎ ").Replace("\n", " ⏎ ");
 
         static void SetVisible(VisualElement element, bool visible) =>
             element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;

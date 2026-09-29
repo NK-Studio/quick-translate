@@ -57,6 +57,24 @@ namespace QuickTranslate
 
         static void TranslateSelection()
         {
+            // 커서가 있는 텍스트 입력칸이 있으면 그 글(또는 선택한 부분)을 번역해 바꿔 넣는다.
+            var focusedWindow = EditorWindow.focusedWindow;
+            if (TextFieldCapture.TryCapture(focusedWindow, out var textTarget, out var textRect))
+            {
+                var textTargets = new List<RenameTarget> { textTarget };
+                Rect WindowTop()
+                {
+                    Rect area = focusedWindow.position;
+                    return new Rect(area.x + 16, area.y + FallbackTopOffset, Mathf.Max(1, area.width - 32), 1);
+                }
+
+                if (textRect == null)
+                    TranslationPopup.Open(textTargets, WindowTop());
+                else
+                    MeasureElement(focusedWindow, textRect, WindowTop, anchor => TranslationPopup.Open(textTargets, anchor));
+                return;
+            }
+
             if (ProjectWindowTranslate.IsProjectWindow(EditorWindow.focusedWindow) ||
                 (Selection.gameObjects.Length == 0 && Selection.assetGUIDs.Length > 0))
             {

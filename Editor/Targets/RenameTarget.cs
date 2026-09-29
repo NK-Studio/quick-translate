@@ -5,12 +5,18 @@ using UnityEngine;
 
 namespace QuickTranslate
 {
-    /// <summary>번역 팝업이 이름을 바꿀 대상 (Hierarchy 의 GameObject / Project 의 에셋).</summary>
+    /// <summary>번역 팝업이 바꿀 대상 (Hierarchy 의 GameObject / Project 의 에셋 / 입력칸의 텍스트).</summary>
     internal abstract class RenameTarget
     {
         public abstract string Name { get; }
         public abstract bool IsValid { get; }
         public abstract Object Context { get; }
+
+        /// <summary>이름이면 이름용 가공(이름 정리형·단어별 조합·대소문자 짝)을 쓰고, 입력칸 텍스트면 문장 그대로 번역한다.</summary>
+        public virtual bool IsName => true;
+
+        /// <summary>팝업 머리에 보여줄 종류 칩. null 이면 표시하지 않는다.</summary>
+        public virtual string Kind => null;
 
         /// <summary>이름을 바꾼다. 실패하면 사유를, 성공하면 null 을 돌려준다.</summary>
         public abstract string Rename(string newName);
@@ -41,6 +47,8 @@ namespace QuickTranslate
     /// <summary>GUID 로 추적하므로 앞서 상위 폴더 이름이 바뀌어도 계속 유효하다. 에셋 이름 변경은 Undo 되지 않는다.</summary>
     internal sealed class AssetTarget : RenameTarget
     {
+        public override string Kind => "에셋";
+
         static readonly char[] InvalidChars = Path.GetInvalidFileNameChars()
             .Concat(new[] { '/', '\\', ':', '*', '?', '"', '<', '>', '|' })
             .Distinct()

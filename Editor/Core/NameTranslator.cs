@@ -47,29 +47,37 @@ namespace QuickTranslate
         }
 
         /// <summary>팝업을 띄우기 전에 번역을 미리 시작한다. 결과는 캐시에 남고, 팝업의 요청이 이어받는다.</summary>
-        public static void Prefetch(string source)
+        public static void Prefetch(string source, bool nameMode = true)
         {
             // 실패는 팝업이 같은 요청을 다시 보낼 때 표시되므로 여기서는 예외만 관찰해 둔다.
-            GetCandidatesAsync(source).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            GetCandidatesAsync(source, default, nameMode).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
         }
 
+        /// <summary>입력칸 텍스트(UI 문구 등)용 문맥. 이름용 기본 문맥 대신 쓴다.</summary>
+        const string TextContext =
+            "This text is used in a Unity game project (UI text, labels, descriptions or editor fields). " +
+            "Translate it naturally, keeping the meaning, tone, line breaks and placeholders.";
+
         /// <summary>
-        /// 이름의 번역 후보를 가져온다. 캐시 → 진행 중인 같은 요청 → 새 요청 순으로 쓴다.
+        /// 번역 후보를 가져온다. 캐시 → 진행 중인 같은 요청 → 새 요청 순으로 쓴다.
         /// ct 는 기다림만 취소한다(요청 자체는 끝까지 진행되어 캐시에 남는다).
+        /// nameMode 가 false 면(입력칸 텍스트) 이름용 가공 없이 문장 그대로 번역한다.
         /// </summary>
-        public static async Task<IReadOnlyList<string>> GetCandidatesAsync(string source, CancellationToken ct = default)
+        public static async Task<IReadOnlyList<string>> GetCandidatesAsync(string source, CancellationToken ct = default,
+            bool nameMode = true)
         {
-            source = source?.Trim() ?? string.Empty;
-            if (Cache.TryGetValue(source, out var cached))
+            source = nameMode ? source?.Trim() ?? string.Empty : source ?? string.Empty;
+            string key = (nameMode ? "N|" : "T|") + source;
+            if (Cache.TryGetValue(key, out var cached))
                 return cached;
 
-            if (!InFlight.TryGetValue(source, out var task))
+            if (!InFlight.TryGetValue(key, out var task))
             {
-                task = ComputeCandidatesAsync(source);
+                task = nameMode ? ComputeCandidatesAsync(source, key) : ComputeTextCandidatesAsync(source, key);
                 if (!task.IsCompleted)
                 {
-                    InFlight[source] = task;
-                    _ = task.ContinueWith(_ => InFlight.Remove(source), TaskScheduler.FromCurrentSynchronizationContext());
+                    InFlight[key] = task;
+                    _ = task.ContinueWith(_ => InFlight.Remove(key), TaskScheduler.FromCurrentSynchronizationContext());
                 }
             }
 
@@ -124,7 +132,69 @@ namespace QuickTranslate
             return false;
         }
 
-        static async Task<IReadOnlyList<string>> ComputeCandidatesAsync(string source)
+        /// <summary>
+        /// 입력칸 텍스트: 용어집 전체 일치 → 문맥 번역 → 일반 번역만 쓴다(이름 정리형·단어별 조합·대소문자 짝 없음).
+        /// 앞뒤 공백·줄바꿈은 원문 그대로 되돌려 붙인다.
+        /// </summary>
+        static async Task<IReadOnlyList<string>> ComputeTextCandidatesAsync(string source, string key)
+        {
+            var ct = CancellationToken.None;
+            string core = source.Trim();
+            string leading = source.Substring(0, source.Length - source.TrimStart().Length);
+            string trailing = source.Substring(source.TrimEnd().Length);
+
+            var direction = DetectDirection(core);
+            if (direction == TranslationDirection.None)
+                return new[] { source };
+
+            var engine = TranslationEngines.Current;
+            if (!engine.HasApiKey)
+                throw new TranslationException($"{engine.DisplayName} API 키가 설정되지 않았습니다.");
+
+            bool toEnglish = direction == TranslationDirection.KoreanToEnglish;
+            var glossary = TranslatorGlossary.instance;
+            string context = TranslatorSettings.UseContext ? TextContext : null;
+
+            var candidates = new List<string>();
+            if (toEnglish ? glossary.TryGet(core, out string hit) : glossary.TryGetKorean(core, out hit))
+                candidates.Add(hit);
+
+            if (engine is ICandidateEngine candidateEngine)
+            {
+                var suggestions = await candidateEngine.SuggestAsync(core, direction, TranslatorSettings.MaxCandidates,
+                    glossary.Pairs, context, ct, nameMode: false);
+                candidates.AddRange(suggestions);
+            }
+            else
+            {
+                var plainTask = engine.TranslateAsync(new[] { core }, direction, null, ct);
+                var contextTask = context != null && engine.SupportsContext
+                    ? engine.TranslateAsync(new[] { core }, direction, context, ct)
+                    : Task.FromResult<string[]>(null);
+                await Task.WhenAll(plainTask, contextTask);
+                candidates.Add(contextTask.Result?[0]);
+                candidates.Add(plainTask.Result[0]);
+            }
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var result = new List<string>();
+            foreach (string candidate in candidates)
+            {
+                string text = candidate?.Trim();
+                if (string.IsNullOrEmpty(text) || !seen.Add(text))
+                    continue;
+                result.Add(leading + text + trailing);
+                if (result.Count >= TranslatorSettings.MaxCandidates)
+                    break;
+            }
+
+            if (result.Count == 0)
+                throw new TranslationException("번역 결과가 비어 있습니다.");
+            Cache[key] = result;
+            return result;
+        }
+
+        static async Task<IReadOnlyList<string>> ComputeCandidatesAsync(string source, string key)
         {
             var ct = CancellationToken.None;
             var direction = DetectDirection(source);
@@ -135,7 +205,7 @@ namespace QuickTranslate
             if (!engine.HasApiKey)
                 throw new TranslationException($"{engine.DisplayName} API 키가 설정되지 않았습니다.");
 
-            if (Cache.TryGetValue(source, out var cached))
+            if (Cache.TryGetValue(key, out var cached))
                 return cached;
 
             string suffix = string.Empty;
@@ -174,7 +244,7 @@ namespace QuickTranslate
                 var finalized = Finalize(list, suffix, TranslatorSettings.MaxCandidates, withCaseVariants: toEnglish);
                 if (finalized.Count == 0)
                     throw new TranslationException("번역 결과가 비어 있습니다.");
-                Cache[source] = finalized;
+                Cache[key] = finalized;
                 return finalized;
             }
 

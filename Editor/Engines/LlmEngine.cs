@@ -16,7 +16,7 @@ namespace QuickTranslate
     internal interface ICandidateEngine
     {
         Task<IReadOnlyList<string>> SuggestAsync(string text, TranslationDirection direction, int count,
-            IReadOnlyList<KeyValuePair<string, string>> glossary, string context, CancellationToken ct);
+            IReadOnlyList<KeyValuePair<string, string>> glossary, string context, CancellationToken ct, bool nameMode = true);
     }
 
     /// <summary>
@@ -38,19 +38,32 @@ namespace QuickTranslate
         protected abstract Task<string> CompleteAsync(string system, string user, CancellationToken ct);
 
         public async Task<IReadOnlyList<string>> SuggestAsync(string text, TranslationDirection direction, int count,
-            IReadOnlyList<KeyValuePair<string, string>> glossary, string context, CancellationToken ct)
+            IReadOnlyList<KeyValuePair<string, string>> glossary, string context, CancellationToken ct, bool nameMode = true)
         {
             bool toEnglish = direction == TranslationDirection.KoreanToEnglish;
             string from = toEnglish ? "Korean" : "English";
             string to = toEnglish ? "English" : "Korean";
 
             var system = new StringBuilder();
-            system.Append("You translate names of GameObjects and assets in a Unity game project from ")
-                .Append(from).Append(" to ").Append(to).Append(".\n")
-                .Append("Return ONLY a JSON array of up to ").Append(count)
-                .Append(" distinct candidate names, best first. No explanations, no code fences.\n")
-                .Append("Each candidate must be a short noun phrase usable as an object name: no trailing punctuation, no quotes");
-            system.Append(toEnglish ? ", no articles (a/an/the).\n" : ".\n");
+            if (nameMode)
+            {
+                system.Append("You translate names of GameObjects and assets in a Unity game project from ")
+                    .Append(from).Append(" to ").Append(to).Append(".\n")
+                    .Append("Return ONLY a JSON array of up to ").Append(count)
+                    .Append(" distinct candidate names, best first. No explanations, no code fences.\n")
+                    .Append("Each candidate must be a short noun phrase usable as an object name: no trailing punctuation, no quotes");
+                system.Append(toEnglish ? ", no articles (a/an/the).\n" : ".\n");
+            }
+            else
+            {
+                // 입력칸 텍스트: 문장 그대로의 자연스러운 번역.
+                system.Append("You translate text used in a Unity game project (UI text, labels, descriptions, editor fields) from ")
+                    .Append(from).Append(" to ").Append(to).Append(".\n")
+                    .Append("Return ONLY a JSON array of up to ").Append(count)
+                    .Append(" distinct candidate translations, best first. No explanations, no code fences.\n")
+                    .Append("Keep line breaks, placeholders such as {0} or %s, and rich text tags such as <b> unchanged.\n");
+            }
+
             system.Append("Keep numbers, symbols and words that are already in ").Append(to).Append(" unchanged.\n");
 
             if (!string.IsNullOrWhiteSpace(context))
