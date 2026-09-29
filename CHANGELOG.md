@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1] - 2026-09-29
+
+### Fixed
+- Enter 로 확정하는 IMGUI 칸(Animator 상태 이름 등)에서 입력칸 번역이 동작하지 않던 문제: 이런 칸은 별도 편집기(DelayedTextEditor)를 써서, 지금 편집 중인 편집기(`EditorGUI.activeEditor`)를 먼저 찾도록 수정
+- 이런 칸은 붙여넣은 뒤 Enter 를 보내 값을 바로 확정
+
 ## [1.3.0] - 2026-09-29
 
 ### Added

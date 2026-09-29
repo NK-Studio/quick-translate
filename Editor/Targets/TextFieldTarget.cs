@@ -151,14 +151,29 @@ namespace QuickTranslate
             TextFieldCapture.GetRange(_original, editor.cursorIndex, editor.selectIndex, out _start, out _length);
         }
 
-        /// <summary>편집 중인 IMGUI 입력칸의 편집기. Unity 버전에 따라 프로퍼티/필드 이름이 달라 둘 다 본다.</summary>
+        /// <summary>
+        /// 편집 중인 IMGUI 입력칸의 편집기. 일반 칸(s_RecycledEditor)과 Enter 로 확정하는 지연 칸(s_DelayedTextEditor,
+        /// Animator 상태 이름 등)이 서로 다른 편집기를 쓰므로, 지금 편집 중인 쪽을 가리키는 activeEditor 를 먼저 본다.
+        /// </summary>
         public static TextEditor GetActiveEditor()
         {
             var type = typeof(EditorGUI);
-            object value = type.GetProperty("s_RecycledEditor", StaticNonPublic)?.GetValue(null)
-                           ?? type.GetField("s_RecycledEditorInternal", StaticNonPublic)?.GetValue(null);
-            return value as TextEditor;
+            object Read(string name) =>
+                type.GetField(name, StaticNonPublic)?.GetValue(null) ?? type.GetProperty(name, StaticNonPublic)?.GetValue(null);
+
+            if (Read("activeEditor") is TextEditor active)
+                return active;
+
+            // activeEditor 가 없는 버전 대비: 키보드 포커스를 가진 편집기를 고른다.
+            foreach (string name in new[] { "s_DelayedTextEditor", "s_DelayedTextEditorInternal", "s_RecycledEditor", "s_RecycledEditorInternal" })
+                if (Read(name) is TextEditor editor && editor.controlID != 0 && editor.controlID == GUIUtility.keyboardControl)
+                    return editor;
+
+            return Read("s_RecycledEditor") as TextEditor ?? Read("s_RecycledEditorInternal") as TextEditor;
         }
+
+        /// <summary>Enter(또는 포커스 해제)로 값이 확정되는 지연 칸인지.</summary>
+        bool IsDelayedField => _editor.GetType().Name == "DelayedTextEditor";
 
         public override string Name => _original.Substring(_start, _length);
         public override bool IsValid => _window != null;
@@ -208,6 +223,11 @@ namespace QuickTranslate
                 }
 
                 _window.SendEvent(EditorGUIUtility.CommandEvent("Paste"));
+
+                // 지연 칸은 붙여넣기만으로는 값이 확정되지 않으므로 Enter 를 보낸다.
+                // (여러 줄 칸에서는 Enter 가 줄바꿈이라 보내지 않는다. 지연 칸은 한 줄 칸이다.)
+                if (IsDelayedField)
+                    _window.SendEvent(Event.KeyboardEvent("return"));
             }
             finally
             {
