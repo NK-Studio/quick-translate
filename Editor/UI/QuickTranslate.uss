@@ -2,6 +2,28 @@
    구성: .qt-header(칩·원문) / .qt-body(후보) / .qt-footer(키 안내)
    배경 겹침은 rgba 로 해서 다크/라이트 스킨 모두에서 구분되게 한다. */
 
+/* 폰트는 Font 에셋을 만들지 않고 ttf 파일을 직접 참조한다.
+   함정 두 가지:
+   - -unity-font 가 아니라 -unity-font-definition 을 쓴다. 에디터 기본 스타일이 font-definition 을 지정하고,
+     font-definition 이 -unity-font 보다 우선한다.
+   - 루트에 걸어 상속시키면 안 된다. 에디터 기본 스타일이 Label·Button 등 텍스트 요소마다 직접 지정해 상속을 덮는다.
+     그래서 텍스트 요소(.unity-text-element)에 직접, 기본 스타일보다 높은 우선순위로 건다. */
+.qt-root .unity-text-element,
+.qt-settings .unity-text-element {
+    -unity-font-definition: url("Fonts/IBMPlexSansKR-Regular.ttf");
+}
+
+/* 굵은 글씨는 파일 하나가 한 굵기라 Bold 파일로 바꾼다. 위 규칙을 이기도록 클래스를 하나 더 붙인다. */
+.qt-root .unity-text-element.qt-chip,
+.qt-root .unity-text-element.qt-source,
+.qt-root .unity-text-element.qt-row__badge,
+.qt-root .unity-text-element.qt-key,
+.qt-settings .unity-text-element.qt-settings-title,
+.qt-settings .unity-text-element.qt-section-title {
+    -unity-font-definition: url("Fonts/IBMPlexSansKR-Bold.ttf");
+    -unity-font-style: normal;
+}
+
 .qt-root {
     border-width: 1px;
     border-color: var(--unity-colors-window-border, #1a1a1a);
@@ -33,17 +55,229 @@
 
 .qt-chip {
     font-size: 9px;
-    -unity-font-style: bold;
-    padding: 1px 6px;
+    /* 높이를 고정하고 반경을 정확히 높이의 절반으로 둔다.
+       반경이 절반을 넘으면 UI Toolkit 이 모서리를 잘라내 알약 끝이 뾰족해진다. */
+    height: 18px;
+    padding: 0 9px;
     margin: 0 4px 0 0;
-    border-radius: 8px;
+    border-radius: 9px;
+    -unity-text-align: middle-center;
     background-color: rgba(255, 255, 255, 0.08);
     color: var(--unity-colors-label-text, #c4c4c4);
 }
 
-.qt-chip--direction {
-    background-color: rgba(76, 154, 255, 0.22);
-    color: #8ab8ff;
+/* 팔레트: Unity Hub 에디터 설치 창 기준 근사값. 강조색은 Hub 설치 버튼 파랑(#0a67c6). */
+
+.qt-light.qt-root {
+    background-color: #ffffff;
+    border-color: #e3e3e3;
+}
+
+.qt-light .qt-header,
+.qt-light .qt-footer {
+    background-color: #fafafa;
+}
+
+.qt-light .qt-header {
+    border-bottom-color: #e3e3e3;
+}
+
+.qt-light .qt-footer {
+    border-top-color: #e3e3e3;
+}
+
+.qt-light Label {
+    color: #202020;
+}
+
+.qt-light .qt-counter,
+.qt-light .qt-status,
+.qt-light .qt-key-desc {
+    color: #707070;
+    opacity: 1;
+}
+
+.qt-light .qt-chip {
+    background-color: #ebebeb;
+    color: #202020;
+}
+
+.qt-light .qt-chip--direction {
+    background-color: #3c3c3c;
+    color: #ffffff;
+}
+
+.qt-light .qt-row:hover {
+    background-color: #f2f2f2;
+}
+
+.qt-light .qt-row--selected,
+.qt-light .qt-row--selected:hover {
+    background-color: #0a67c6;
+    border-left-color: #0a67c6;
+}
+
+.qt-light .qt-row--selected > .qt-row__text {
+    color: #ffffff;
+}
+
+.qt-light .qt-key {
+    background-color: #ebebeb;
+    border-color: #e3e3e3;
+    color: #202020;
+}
+
+/* 기본 Unity 컨트롤도 같은 팔레트로 덮는다 (안 덮으면 에디터 회색이 섞여 튄다) */
+.qt-light .unity-help-box {
+    background-color: #fdf0f0;
+    border-color: #f2caca;
+    border-radius: 6px;
+}
+
+.qt-light .unity-button {
+    background-color: #ffffff;
+    border-color: #e3e3e3;
+    border-radius: 6px;
+    color: #202020;
+    min-height: 22px;
+}
+
+.qt-light .unity-button:hover {
+    background-color: #f2f2f2;
+}
+
+.qt-light .unity-button:active {
+    background-color: #ebebeb;
+}
+
+.qt-light .unity-base-text-field__input {
+    background-color: #ffffff;
+    border-color: #e3e3e3;
+    border-radius: 6px;
+    color: #202020;
+}
+
+.qt-light .unity-base-text-field__input:focus {
+    border-color: #0a67c6;
+}
+
+.qt-dark.qt-root {
+    background-color: #1b1b1b;
+    border-color: #303030;
+}
+
+.qt-dark .qt-header,
+.qt-dark .qt-footer {
+    background-color: #1f1f1f;
+}
+
+.qt-dark .qt-header {
+    border-bottom-color: #303030;
+}
+
+.qt-dark .qt-footer {
+    border-top-color: #303030;
+}
+
+.qt-dark Label {
+    color: #eeeeee;
+}
+
+.qt-dark .qt-counter,
+.qt-dark .qt-status,
+.qt-dark .qt-key-desc {
+    color: #8f8f8f;
+    opacity: 1;
+}
+
+.qt-dark .qt-chip {
+    background-color: #2e2e2e;
+    color: #eeeeee;
+}
+
+.qt-dark .qt-chip--direction {
+    background-color: #eeeeee;
+    color: #1b1b1b;
+}
+
+.qt-dark .qt-row:hover {
+    background-color: #262626;
+}
+
+.qt-dark .qt-row--selected,
+.qt-dark .qt-row--selected:hover {
+    background-color: #0a67c6;
+    border-left-color: #0a67c6;
+}
+
+.qt-dark .qt-row--selected > .qt-row__text {
+    color: #ffffff;
+}
+
+.qt-dark .qt-key {
+    background-color: #2e2e2e;
+    border-color: #303030;
+    color: #eeeeee;
+}
+
+/* 기본 Unity 컨트롤도 같은 팔레트로 덮는다 (안 덮으면 에디터 회색이 섞여 튄다) */
+.qt-dark .unity-help-box {
+    background-color: #2a1f1f;
+    border-color: #4a2c2c;
+    border-radius: 6px;
+}
+
+.qt-dark .unity-button {
+    background-color: #242424;
+    border-color: #303030;
+    border-radius: 6px;
+    color: #eeeeee;
+    min-height: 22px;
+}
+
+.qt-dark .unity-button:hover {
+    background-color: #262626;
+}
+
+.qt-dark .unity-button:active {
+    background-color: #2e2e2e;
+}
+
+.qt-dark .unity-base-text-field__input {
+    background-color: #242424;
+    border-color: #303030;
+    border-radius: 6px;
+    color: #eeeeee;
+}
+
+.qt-dark .unity-base-text-field__input:focus {
+    border-color: #0a67c6;
+}
+
+/* `.qt-{t} Label` 이 단일 클래스 색보다 우선하므로 상태색은 테마 범위로 다시 지정한다. */
+.qt-dark .qt-row__badge {
+    color: #8ff0b0;
+    background-color: rgba(96, 220, 140, 0.22);
+}
+
+.qt-light .qt-row__badge {
+    color: #17803d;
+    background-color: rgba(23, 128, 61, 0.12);
+}
+
+/* 선택 행(파란 배경) 위에서는 녹색이 묻히므로 흰색으로 바꾼다. */
+.qt-dark .qt-row--selected > .qt-row__badge,
+.qt-light .qt-row--selected > .qt-row__badge {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.qt-dark .qt-rename-error {
+    color: #ff8a7d;
+}
+
+.qt-light .qt-rename-error {
+    color: #c62f22;
 }
 
 .qt-spacer {
@@ -71,7 +305,6 @@
 }
 
 .qt-source {
-    -unity-font-style: bold;
     font-size: 13px;
     margin: 0;
     padding: 0;
@@ -128,7 +361,6 @@
 }
 
 .qt-row__badge {
-    -unity-font-style: bold;
     font-size: 9px;
     color: #6fd08a;
     background-color: rgba(89, 191, 115, 0.18);
@@ -176,7 +408,6 @@
 
 .qt-key {
     font-size: 9px;
-    -unity-font-style: bold;
     padding: 0 4px;
     margin: 0 3px 0 0;
     border-width: 1px;
@@ -201,12 +432,10 @@
 
 .qt-settings-title {
     font-size: 19px;
-    -unity-font-style: bold;
     margin: 2px 0 8px 0;
 }
 
 .qt-section-title {
-    -unity-font-style: bold;
     margin: 12px 3px 2px 3px;
 }
 

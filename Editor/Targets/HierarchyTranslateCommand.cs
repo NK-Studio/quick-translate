@@ -76,7 +76,6 @@ namespace QuickTranslate
                 return;
 
             var targets = gameObjects.Select(go => (RenameTarget)new GameObjectTarget(go)).ToList();
-            TranslationPopup.PrefetchFirst(targets); // 팝업 위치를 재는 동안 번역을 먼저 시작한다.
             void Open(Rect anchor) => TranslationPopup.Open(targets, anchor);
 
             // [실험] Inspector 에 포커스가 있으면 GameObject 헤더의 이름 칸 바로 아래에 띄운다.
@@ -125,10 +124,12 @@ namespace QuickTranslate
 
             // 헤더 기준 이름 칸 위치(Unity 6 기본 레이아웃): 왼쪽에서 약 66pt, 위에서 5pt, 높이 19pt, 오른쪽 Static 토글 앞까지.
             const float NameLeft = 66, NameTop = 5, NameHeight = 19, RightReserved = 70;
+            // 이름 칸 바로 밑에 붙이면 팝업 테두리가 칸 아래쪽을 덮으므로 조금 띄운다(값은 눈으로 맞춤).
+            const float PopupGap = 4;
             MeasureElement(inspector, () =>
             {
                 Rect h = header.worldBound;
-                return new Rect(h.x + NameLeft, h.y + NameTop, Mathf.Max(1, h.width - NameLeft - RightReserved), NameHeight);
+                return new Rect(h.x + NameLeft, h.y + NameTop + PopupGap, Mathf.Max(1, h.width - NameLeft - RightReserved), NameHeight);
             }, Fallback, open);
         }
 

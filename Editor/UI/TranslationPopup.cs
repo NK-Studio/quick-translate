@@ -26,7 +26,7 @@ namespace QuickTranslate
         IReadOnlyList<string> _candidates;
         int _selected;
         string _error;
-        bool _loading;
+        bool _loading = true; // 첫 프레임부터 "번역 중" 상태로 그린다(Load 는 한 틱 뒤에 시작).
         string _progress;
         string _renameError;
         bool _editing;
@@ -61,21 +61,18 @@ namespace QuickTranslate
 
         bool HasRemaining => _targets.Count - _targetIndex > 1;
 
-        /// <summary>처음 두 항목의 번역을 미리 시작한다(이미 진행 중이면 아무 일도 하지 않는다).</summary>
-        public static void PrefetchFirst(List<RenameTarget> targets)
-        {
-            for (int i = 0; i < targets.Count && i < 2; i++)
-                if (targets[i].IsValid)
-                    NameTranslator.Prefetch(targets[i].Name);
-        }
-
         public static void Open(List<RenameTarget> targets, Rect anchorScreenRect)
         {
-            PrefetchFirst(targets);
             var window = CreateInstance<TranslationPopup>();
             window._targets = targets;
             Show(window, anchorScreenRect, 100 + RowHeight * TranslatorSettings.MaxCandidates);
-            window.Load();
+            // 번역 요청은 첫 await 전까지(설정 읽기·요청 생성·전송) 메인 스레드에서 동기로 돈다.
+            // 여기서 바로 시작하면 그만큼 팝업이 늦게 그려지므로, 팝업을 먼저 그린 다음 틱에 시작한다.
+            EditorApplication.delayCall += () =>
+            {
+                if (window != null)
+                    window.Load();
+            };
         }
 
         /// <param name="height">위/아래 배치를 정할 때 쓰는 최대 높이. 창은 작게 열고 내용에 맞춰 키운다.</param>
@@ -98,6 +95,7 @@ namespace QuickTranslate
             var root = rootVisualElement;
             TranslatorStyles.Apply(root);
             root.AddToClassList("qt-root");
+            root.AddToClassList(EditorGUIUtility.isProSkin ? "qt-dark" : "qt-light");
             root.focusable = true;
 
             // 패널은 내용 크기에 맞춰 줄어들고(절대 배치), 그 크기를 창 크기로 쓴다.
