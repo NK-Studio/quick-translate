@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.4] - 2026-09-29
+
+### Fixed
+- IMGUI 입력칸(Animator 상태 이름, TextMeshPro 등)에서 번역이 클립보드 복사로 끝나던 문제를 근본적으로 해결:
+  팝업을 **포커스 없이** 띄워 입력칸의 편집 상태를 유지하고, ↑↓·Enter·Esc 는 Unity 단축키 시스템과 같은
+  전역 이벤트 훅(`EditorApplication.globalEventHandler`)에서 받아 처리. Enter 시 편집 중인 칸에 바로 붙여넣음
+- 원래 창에서 다른 곳을 누르거나 편집이 끝나면 팝업이 자동으로 닫힘
+
 ## [1.3.3] - 2026-09-29
 
 ### Fixed

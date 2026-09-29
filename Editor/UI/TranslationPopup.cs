@@ -65,6 +65,7 @@ namespace QuickTranslate
         {
             var window = CreateInstance<TranslationPopup>();
             window._targets = targets;
+            window._keepFocusOn = targets.Count > 0 ? targets[0].SourceWindowToKeepFocused : null;
             Show(window, anchorScreenRect, 100 + RowHeight * TranslatorSettings.MaxCandidates);
             // 번역 요청은 첫 await 전까지(설정 읽기·요청 생성·전송) 메인 스레드에서 동기로 돈다.
             // 여기서 바로 시작하면 그만큼 팝업이 늦게 그려지므로, 팝업을 먼저 그린 다음 틱에 시작한다.
@@ -85,10 +86,121 @@ namespace QuickTranslate
             window._placeBelow = !anchorInMain || anchorScreenRect.yMax + height <= main.yMax ||
                                  anchorScreenRect.y - height < main.y;
             // 처음부터 "번역 중" 크기로 열어, 큰 빈 창이 떴다가 줄어드는 깜빡임을 없앤다.
+            if (window._keepFocusOn != null && window.ShowWithoutFocus(anchorScreenRect))
+                return;
+
+            window._keepFocusOn = null;
             window.ShowAsDropDown(anchorScreenRect, new Vector2(MinWidth, InitialHeight));
         }
 
-        void OnDisable() => _cts?.Cancel();
+        void OnDisable()
+        {
+            _cts?.Cancel();
+            SetGlobalKeyHook(false);
+            EditorApplication.update -= CloseWhenSourceLosesFocus;
+        }
+
+        // ───────── 포커스를 빼앗지 않는 모드 (IMGUI 입력칸) ─────────
+        // IMGUI 입력칸은 창이 키보드 포커스를 잃는 순간 Unity 가 편집을 끝낸다.
+        // 그래서 팝업을 포커스 없이 띄우고, 키 입력은 Unity 단축키 시스템과 같은 전역 이벤트 훅
+        // (EditorApplication.globalEventHandler, 입력칸보다 먼저 키를 받는다)에서 가로챈다.
+
+        EditorWindow _keepFocusOn;
+
+        static readonly System.Reflection.FieldInfo GlobalEventHandlerField = typeof(EditorApplication).GetField(
+            "globalEventHandler", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+
+        bool ShowWithoutFocus(Rect anchor)
+        {
+            var showWithMode = typeof(EditorWindow).GetMethod("ShowPopupWithMode",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var modeType = typeof(EditorWindow).Assembly.GetType("UnityEditor.ShowMode");
+            if (showWithMode == null || modeType == null || GlobalEventHandlerField == null)
+                return false;
+
+            float y = _placeBelow ? anchor.yMax : anchor.y - InitialHeight;
+            position = new Rect(anchor.x, y, MinWidth, InitialHeight);
+            try
+            {
+                // ShowMode.PopupMenu, giveFocus: false
+                showWithMode.Invoke(this, new[] { Enum.ToObject(modeType, 1), (object)false });
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            SetGlobalKeyHook(true);
+            EditorApplication.update += CloseWhenSourceLosesFocus;
+            return true;
+        }
+
+        void SetGlobalKeyHook(bool enable)
+        {
+            if (GlobalEventHandlerField == null)
+                return;
+            var current = GlobalEventHandlerField.GetValue(null) as EditorApplication.CallbackFunction;
+            current -= OnGlobalEvent;
+            if (enable)
+                current += OnGlobalEvent;
+            GlobalEventHandlerField.SetValue(null, current);
+        }
+
+        /// <summary>원래 창에서 다른 곳을 누르거나 입력칸 편집이 끝나면 닫는다.</summary>
+        void CloseWhenSourceLosesFocus()
+        {
+            if (_keepFocusOn == null)
+                return;
+            var focused = EditorWindow.focusedWindow;
+            if (focused == this)
+                return; // 후보를 마우스로 누른 경우: 그 처리(Apply)가 닫는다.
+            if (focused != _keepFocusOn || !EditorGUIUtility.editingTextField)
+                Close();
+        }
+
+        void OnGlobalEvent()
+        {
+            var e = Event.current;
+            if (_keepFocusOn == null || e == null || e.type != EventType.KeyDown)
+                return;
+
+            // Enter/Tab 의 문자 이벤트가 입력칸에 줄바꿈·탭으로 들어가지 않게 함께 삼킨다.
+            if (e.keyCode == KeyCode.None && (e.character == '\n' || e.character == '\r' || e.character == '\t'))
+            {
+                e.Use();
+                return;
+            }
+
+            switch (e.keyCode)
+            {
+                case KeyCode.Escape:
+                    e.Use();
+                    Close();
+                    return;
+
+                case KeyCode.Return:
+                case KeyCode.KeypadEnter:
+                    e.Use();
+                    string chosen = SelectedCandidate();
+                    if (chosen != null)
+                        Apply(chosen);
+                    return;
+
+                case KeyCode.Tab:
+                    e.Use(); // 이 모드에서는 직접 수정 대신 입력칸에서 고치면 된다.
+                    return;
+
+                case KeyCode.UpArrow:
+                case KeyCode.DownArrow:
+                    e.Use();
+                    if (_candidates == null || _loading || _candidates.Count == 0)
+                        return;
+                    int step = e.keyCode == KeyCode.UpArrow ? -1 : 1;
+                    _selected = (_selected + step + _candidates.Count) % _candidates.Count;
+                    UpdateSelection();
+                    return;
+            }
+        }
 
         void CreateGUI()
         {
@@ -149,7 +261,8 @@ namespace QuickTranslate
             _panel.RegisterCallback<GeometryChangedEvent>(_ => FitToContent());
 
             Refresh();
-            root.schedule.Execute(() => root.Focus());
+            if (_keepFocusOn == null)
+                root.schedule.Execute(() => root.Focus());
         }
 
         static T AddTo<T>(VisualElement parent, T element, params string[] classNames) where T : VisualElement
@@ -170,7 +283,9 @@ namespace QuickTranslate
             _footerBuiltWithBatch = batch;
 
             _footer.Clear();
-            var keys = _editing
+            var keys = _keepFocusOn != null
+                ? new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Esc", "닫기") }
+                : _editing
                 ? new[] { ("Enter", "적용"), ("Esc", "취소") }
                 : batch
                     ? new[] { ("↑↓", "이동"), ("Enter", "적용"), ("Tab", "수정"), ("⇧Enter", "전체"), ("Esc", "닫기") }

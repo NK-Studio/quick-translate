@@ -1,6 +1,6 @@
 {
   "name": "com.nkstudio.quick-translate",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "displayName": "Quick Translate",
   "description": "Translate GameObject and asset names between Korean and English right in the Hierarchy / Project window with one shortcut (Cmd/Ctrl+Shift+X). Shows ranked candidates in a popup. Engines: Google (free), Google Cloud, DeepL, Papago, Claude, ChatGPT, Gemini.",
   "unity": "6000.0",

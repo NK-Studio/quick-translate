@@ -271,6 +271,7 @@ namespace QuickTranslate
         public override Object Context => null;
         public override bool IsName => false;
         public override string Kind => "텍스트";
+        public override EditorWindow SourceWindowToKeepFocused => _window;
 
         public override string Rename(string newName)
         {
@@ -279,7 +280,14 @@ namespace QuickTranslate
             if (_window == null)
                 return "입력칸이 있던 창이 닫혔습니다.";
 
-            // 팝업이 닫히고 원래 창·입력칸으로 포커스를 돌려놓은 다음, 그 창의 OnGUI 안에서 편집 상태를 되살리고 붙여넣는다.
+            // 팝업이 포커스를 가져가지 않았다면 입력칸은 아직 편집 중이므로 다음 틱에 바로 붙여넣는다.
+            if (IsStillEditing())
+            {
+                EditorApplication.delayCall += () => Paste(newName);
+                return null;
+            }
+
+            // (마우스로 후보를 눌러 팝업이 포커스를 가져간 경우) 팝업이 닫히고 원래 창·입력칸으로 포커스를 돌려놓은 다음, 그 창의 OnGUI 안에서 편집 상태를 되살리고 붙여넣는다.
             _window.Focus();
             if (_container != null && _container.panel != null)
                 _container.Focus();

@@ -18,6 +18,12 @@ namespace QuickTranslate
         /// <summary>팝업 머리에 보여줄 종류 칩. null 이면 표시하지 않는다.</summary>
         public virtual string Kind => null;
 
+        /// <summary>
+        /// 원래 창이 키보드 포커스를 잃으면 안 되는 대상(IMGUI 입력칸). 이 창을 주면 팝업을 포커스 없이 띄우고
+        /// 키 입력은 전역 이벤트 훅으로 받는다. null 이면 일반 드롭다운 팝업.
+        /// </summary>
+        public virtual EditorWindow SourceWindowToKeepFocused => null;
+
         /// <summary>이름을 바꾼다. 실패하면 사유를, 성공하면 null 을 돌려준다.</summary>
         public abstract string Rename(string newName);
     }
