@@ -143,11 +143,21 @@ namespace QuickTranslate
         readonly int _start;
         readonly int _length;
 
+        // 팝업이 포커스를 가져가면 Unity 가 칸의 편집 상태를 끝내므로, 되살릴 때 쓸 값을 캡처 시점에 기억한다.
+        readonly int _controlId;
+        readonly Rect _position;
+        readonly GUIStyle _style;
+        readonly bool _multiline;
+
         public ImguiTextTarget(EditorWindow window, TextEditor editor)
         {
             _window = window;
             _editor = editor;
             _original = editor.text ?? string.Empty;
+            _controlId = editor.controlID;
+            _position = editor.position;
+            _style = editor.style;
+            _multiline = editor.isMultiline;
             TextFieldCapture.GetRange(_original, editor.cursorIndex, editor.selectIndex, out _start, out _length);
         }
 
@@ -170,6 +180,38 @@ namespace QuickTranslate
                     return editor;
 
             return Read("s_RecycledEditor") as TextEditor ?? Read("s_RecycledEditorInternal") as TextEditor;
+        }
+
+        bool IsStillEditing() =>
+            EditorGUIUtility.editingTextField && GetActiveEditor() == _editor &&
+            _editor.controlID == _controlId && GUIUtility.keyboardControl == _controlId;
+
+        /// <summary>
+        /// 팝업 때문에 끝난 편집 상태를 되살린다. Unity 의 편집 판정(IsEditingControl)은
+        /// 창 포커스 + keyboardControl == 칸 번호 + 편집기의 controlID + 편집 중 표시(s_ActuallyEditing) 이므로,
+        /// 키보드 포커스를 칸 번호로 돌려놓고 편집기의 내부 BeginEditing 으로 편집을 다시 시작한다.
+        /// </summary>
+        void RestoreEditing()
+        {
+            if (_controlId == 0)
+                return;
+
+            var begin = _editor.GetType().GetMethod("BeginEditing",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
+                new[] { typeof(int), typeof(string), typeof(Rect), typeof(GUIStyle), typeof(bool), typeof(bool) }, null);
+            if (begin == null)
+                return;
+
+            try
+            {
+                GUIUtility.keyboardControl = _controlId;
+                begin.Invoke(_editor, new object[] { _controlId, _original, _position, _style, _multiline, false });
+                EditorGUIUtility.editingTextField = true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[Quick Translate] 입력칸 편집 상태를 되살리지 못했습니다: {e.GetBaseException().Message}");
+            }
         }
 
         /// <summary>Enter(또는 포커스 해제)로 값이 확정되는 지연 칸인지.</summary>
@@ -200,8 +242,11 @@ namespace QuickTranslate
                 return;
 
             bool wholeText = _length == _original.Length;
+            if (!IsStillEditing())
+                RestoreEditing();
+
             bool changed = _editor.text != _original;
-            if (!EditorGUIUtility.editingTextField || GetActiveEditor() != _editor || (changed && !wholeText))
+            if (!IsStillEditing() || (changed && !wholeText))
             {
                 EditorGUIUtility.systemCopyBuffer = text;
                 Debug.LogWarning("[Quick Translate] 입력칸 편집이 끝나서 번역을 바로 넣지 못했습니다. 번역 결과를 클립보드에 복사했으니 붙여넣어 주세요.");
